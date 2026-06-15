@@ -10,7 +10,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
-import { createReadStream, rmSync } from "node:fs";
+import { createReadStream, existsSync, rmSync } from "node:fs";
 import { execFile, spawn } from "node:child_process";
 import { homedir } from "node:os";
 import {
@@ -41,7 +41,7 @@ const UPDATE_REQUEST_TIMEOUT_MS = Number(process.env.CODEX_SESSION_MANAGER_UPDAT
 let CODEX_HOME = DEFAULT_CODEX_HOME;
 let SESSIONS_ROOT = join(CODEX_HOME, "sessions");
 let BACKUPS_ROOT = DEFAULT_BACKUPS_ROOT;
-let STATE_DB = join(CODEX_HOME, "state_5.sqlite");
+let STATE_DB = defaultStateDbPath(CODEX_HOME);
 let SESSION_INDEX = join(CODEX_HOME, "session_index.jsonl");
 let CODEX_CONFIG_TOML = join(CODEX_HOME, "config.toml");
 let CODEX_GLOBAL_STATE = join(CODEX_HOME, ".codex-global-state.json");
@@ -66,6 +66,11 @@ function resolveConfigPath(value, fallback) {
   return resolve(expandHomePath(value || fallback));
 }
 
+function defaultStateDbPath(codexHome) {
+  const sqlitePath = join(codexHome, "sqlite", "state_5.sqlite");
+  return existsSync(sqlitePath) ? sqlitePath : join(codexHome, "state_5.sqlite");
+}
+
 function normalizeBackupsRoot(value, fallback = DEFAULT_BACKUPS_ROOT) {
   const resolved = resolveConfigPath(value, fallback);
   return basename(resolved) === "backups" ? resolved : join(resolved, "backups");
@@ -75,7 +80,7 @@ function applyConfigPaths(config = {}) {
   CODEX_HOME = resolveConfigPath(config.codexHome, DEFAULT_CODEX_HOME);
   SESSIONS_ROOT = resolveConfigPath(config.sessionsRoot, join(CODEX_HOME, "sessions"));
   BACKUPS_ROOT = normalizeBackupsRoot(config.backupsRoot, DEFAULT_BACKUPS_ROOT);
-  STATE_DB = resolveConfigPath(config.stateDb, join(CODEX_HOME, "state_5.sqlite"));
+  STATE_DB = resolveConfigPath(config.stateDb, defaultStateDbPath(CODEX_HOME));
   SESSION_INDEX = join(CODEX_HOME, "session_index.jsonl");
   CODEX_CONFIG_TOML = join(CODEX_HOME, "config.toml");
   CODEX_GLOBAL_STATE = join(CODEX_HOME, ".codex-global-state.json");
@@ -99,7 +104,7 @@ async function saveConfig(payload) {
   const codexHome = resolve(expanded);
   const sessionsRoot = resolveConfigPath(payload.sessionsRoot, join(codexHome, "sessions"));
   const backupsRoot = normalizeBackupsRoot(payload.backupsRoot, DEFAULT_BACKUPS_ROOT);
-  const stateDb = resolveConfigPath(payload.stateDb, join(codexHome, "state_5.sqlite"));
+  const stateDb = resolveConfigPath(payload.stateDb, defaultStateDbPath(codexHome));
   const codexHomeStat = await stat(codexHome).catch(() => null);
   if (!codexHomeStat?.isDirectory()) throw new Error("codexHome directory not found");
   const sessionsRootStat = await stat(sessionsRoot).catch(() => null);
@@ -168,7 +173,7 @@ async function getConfig() {
     defaultCodexHome: DEFAULT_CODEX_HOME,
     defaultSessionsRoot: join(CODEX_HOME, "sessions"),
     defaultBackupsRoot: DEFAULT_BACKUPS_ROOT,
-    defaultStateDb: join(CODEX_HOME, "state_5.sqlite"),
+    defaultStateDb: defaultStateDbPath(CODEX_HOME),
     configPath: CONFIG_PATH,
     codexHomeExists: await exists(CODEX_HOME),
     sessionsRootExists: await exists(SESSIONS_ROOT),
