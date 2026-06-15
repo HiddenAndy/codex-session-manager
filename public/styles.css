@@ -47,7 +47,28 @@ body.modal-open {
 .topbar-actions {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.header-update {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding-left: 10px;
+  border-left: 1px solid #e7edf5;
+}
+
+.header-update span:not(.button-icon) {
+  max-width: 260px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .process-status {
@@ -571,40 +592,6 @@ main {
   font-weight: 700;
   line-height: 1.6;
   padding: 14px 16px;
-}
-
-.update-panel {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) max-content;
-  align-items: center;
-  gap: 12px;
-  margin-top: 18px;
-  padding-top: 16px;
-  border-top: 1px solid #e7edf5;
-}
-
-.update-panel h3 {
-  margin: 0;
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.update-panel p {
-  margin: 4px 0 0;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.update-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.update-actions button {
-  min-height: 30px;
 }
 
 .settings-header-separator {

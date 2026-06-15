@@ -14,6 +14,13 @@
       </div>
       <div class="topbar-actions">
         <button id="refreshButton" type="button">새로고침</button>
+        <div class="header-update" aria-live="polite">
+          <span id="updateStatusText">업데이트 확인 전</span>
+          <button id="updateButton" class="small" type="button" data-update-action="check">
+            <span class="button-icon" data-lucide="refresh-cw" aria-hidden="true"></span>
+            확인
+          </button>
+        </div>
         <button id="shutdownButton" class="danger" type="button"><span class="button-icon" data-lucide="power" aria-hidden="true"></span>프로그램 종료</button>
       </div>
     </header>
@@ -107,16 +114,6 @@
             <button type="submit">경로 저장</button>
             <span id="codexHomeStatus" class="settings-status muted">설정 파일:</span>
           </form>
-          <div class="update-panel" aria-live="polite">
-            <div>
-              <h3>프로그램 업데이트</h3>
-              <p id="updateStatusText">업데이트 확인 전</p>
-            </div>
-            <div class="update-actions">
-              <button id="checkUpdateButton" class="small" type="button"><span class="button-icon" data-lucide="refresh-cw" aria-hidden="true"></span>확인</button>
-              <button id="installUpdateButton" class="small" type="button" disabled><span class="button-icon" data-lucide="download" aria-hidden="true"></span>설치</button>
-            </div>
-          </div>
         </section>
 
         <div class="help-region">

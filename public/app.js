@@ -333,41 +333,45 @@ function renderConfigStatus() {
 
 function renderUpdateStatus(info = updateInfo) {
   const statusText = $("#updateStatusText");
-  const installButton = $("#installUpdateButton");
-  if (!statusText || !installButton) return;
+  const updateButton = $("#updateButton");
+  if (!statusText || !updateButton) return;
+  const setButton = (action, label, icon) => {
+    updateButton.dataset.updateAction = action;
+    updateButton.innerHTML = `<span class="button-icon" data-lucide="${icon}" aria-hidden="true"></span>${label}`;
+    updateButton.disabled = false;
+    lucide.createIcons();
+  };
   if (!info) {
     statusText.textContent = "업데이트 확인 전";
-    installButton.disabled = true;
+    setButton("check", "확인", "refresh-cw");
     return;
   }
   if (info.error) {
     statusText.textContent = `확인 실패: ${info.error}`;
-    installButton.disabled = true;
+    setButton("check", "다시 확인", "refresh-cw");
     return;
   }
   if (info.available) {
     const label = info.label || info.latestVersion || "새 버전";
     statusText.textContent = `업데이트 가능: ${label}`;
-    installButton.disabled = false;
+    setButton("install", "설치", "download");
     return;
   }
   statusText.textContent = info.reason || "최신 상태입니다.";
-  installButton.disabled = true;
+  setButton("check", "확인", "refresh-cw");
 }
 
 async function checkUpdateStatus(options = {}) {
   const statusText = $("#updateStatusText");
-  const checkButton = $("#checkUpdateButton");
-  const installButton = $("#installUpdateButton");
+  const updateButton = $("#updateButton");
   if (statusText) statusText.textContent = "업데이트 확인 중...";
-  if (checkButton) checkButton.disabled = true;
-  if (installButton) installButton.disabled = true;
+  if (updateButton) updateButton.disabled = true;
   try {
     updateInfo = await api("/api/update-status");
     renderUpdateStatus();
     if (!options.silent && updateInfo.error) await showAlert(updateInfo.error, "업데이트 확인 실패");
   } finally {
-    if (checkButton) checkButton.disabled = false;
+    if (updateButton) updateButton.disabled = false;
   }
 }
 
@@ -384,8 +388,7 @@ async function installAvailableUpdate() {
   );
   if (!ok) return;
   $("#updateStatusText").textContent = "업데이트 설치를 시작합니다...";
-  $("#checkUpdateButton").disabled = true;
-  $("#installUpdateButton").disabled = true;
+  $("#updateButton").disabled = true;
   await api("/api/update", { method: "POST", body: JSON.stringify({}) });
   document.body.innerHTML = `<main class="shutdown-screen">
     <section class="panel">
@@ -1518,11 +1521,13 @@ $("#refreshButton").addEventListener("click", () => {
 $("#shutdownButton").addEventListener("click", () => {
   shutdownProgram().catch(showError);
 });
-$("#checkUpdateButton").addEventListener("click", () => {
+$("#updateButton").addEventListener("click", () => {
+  const action = $("#updateButton").dataset.updateAction;
+  if (action === "install") {
+    installAvailableUpdate().catch(showError);
+    return;
+  }
   checkUpdateStatus().catch(showError);
-});
-$("#installUpdateButton").addEventListener("click", () => {
-  installAvailableUpdate().catch(showError);
 });
 $("#codexHomeForm").addEventListener("submit", (event) => {
   saveCodexHome(event).catch(showError);
