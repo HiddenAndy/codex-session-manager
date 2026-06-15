@@ -343,22 +343,22 @@ function renderUpdateStatus(info = updateInfo) {
   };
   if (!info) {
     statusText.textContent = "업데이트 확인 전";
-    setButton("check", "확인", "refresh-cw");
+    setButton("check", "업데이트 확인", "refresh-cw");
     return;
   }
   if (info.error) {
     statusText.textContent = `확인 실패: ${info.error}`;
-    setButton("check", "다시 확인", "refresh-cw");
+    setButton("check", "업데이트 확인", "refresh-cw");
     return;
   }
   if (info.available) {
     const label = info.label || info.latestVersion || "새 버전";
     statusText.textContent = `업데이트 가능: ${label}`;
-    setButton("install", "설치", "download");
+    setButton("install", "업데이트", "download");
     return;
   }
   statusText.textContent = info.reason || "최신 상태입니다.";
-  setButton("check", "확인", "refresh-cw");
+  setButton("check", "업데이트 확인", "refresh-cw");
 }
 
 async function checkUpdateStatus(options = {}) {
