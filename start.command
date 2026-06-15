@@ -37,6 +37,18 @@ fi
 
 if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
   echo "이미 서버가 실행 중입니다: $URL"
+  RUNNING_PID="$(lsof -tiTCP:"$PORT" -sTCP:LISTEN | head -n 1)"
+  RUNNING_DIR=""
+  if [ -n "$RUNNING_PID" ]; then
+    RUNNING_DIR="$(lsof -p "$RUNNING_PID" 2>/dev/null | awk '$4 == "cwd" {print $9; exit}')"
+  fi
+  if [ -n "$RUNNING_DIR" ]; then
+    echo "실행 중인 위치: $RUNNING_DIR"
+    echo "현재 실행한 위치: $PROJECT_DIR"
+    if [ "$RUNNING_DIR" != "$PROJECT_DIR" ]; then
+      echo "다른 위치의 서버가 이미 실행 중입니다. 해당 서버를 종료한 뒤 다시 실행하면 현재 위치에서 시작됩니다."
+    fi
+  fi
   open "$URL" >/dev/null 2>&1 || true
   exit 0
 fi
