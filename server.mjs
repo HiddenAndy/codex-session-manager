@@ -411,6 +411,50 @@ async function releaseUpdateCandidate() {
   };
 }
 
+async function releaseRedirectUpdateCandidate() {
+  const latestUrl = `https://github.com/${UPDATE_REPO}/releases/latest`;
+  const response = await fetch(latestUrl, {
+    method: "HEAD",
+    redirect: "manual",
+    signal: AbortSignal.timeout(UPDATE_REQUEST_TIMEOUT_MS),
+  });
+  if (![301, 302, 303, 307, 308].includes(response.status)) return null;
+  const location = response.headers.get("location") || "";
+  const match = location.match(/\/releases\/tag\/([^/?#]+)/);
+  if (!match) return null;
+  const tagName = decodeURIComponent(match[1]);
+  const latestVersion = normalizeVersion(tagName);
+  const downloadUrl = `https://github.com/${UPDATE_REPO}/releases/download/${encodeURIComponent(tagName)}/${encodeURIComponent(UPDATE_ASSET_NAME)}`;
+  const assetResponse = await fetch(downloadUrl, {
+    method: "HEAD",
+    redirect: "manual",
+    signal: AbortSignal.timeout(UPDATE_REQUEST_TIMEOUT_MS),
+  });
+  if (assetResponse.status === 404) {
+    return {
+      source: "release",
+      available: false,
+      reason: `${UPDATE_ASSET_NAME} 릴리스 asset을 찾을 수 없습니다.`,
+      latestVersion,
+      releaseUrl: location,
+    };
+  }
+  if (!assetResponse.ok && ![301, 302, 303, 307, 308].includes(assetResponse.status)) return null;
+  const available = compareVersions(latestVersion, APP_PACKAGE.version) > 0;
+  return {
+    source: "release",
+    available,
+    currentVersion: APP_PACKAGE.version,
+    latestVersion,
+    label: tagName.startsWith("v") ? tagName : `v${latestVersion}`,
+    downloadUrl,
+    releaseUrl: location,
+    publishedAt: null,
+    assetName: UPDATE_ASSET_NAME,
+    reason: available ? "" : "현재 버전이 최신 릴리스와 같거나 더 높습니다.",
+  };
+}
+
 async function branchUpdateCandidate() {
   const repo = await githubJson("");
   if (!repo) return null;
@@ -449,9 +493,13 @@ async function getUpdateStatus() {
     if (branch) return { ...base, ...branch };
     return { ...base, available: false, reason: "업데이트 소스를 찾을 수 없습니다." };
   } catch (error) {
+    const fallbackRelease = await releaseRedirectUpdateCandidate().catch(() => null);
+    if (fallbackRelease) return { ...base, ...fallbackRelease, checkedBy: "release-redirect" };
     const message =
       error?.name === "TimeoutError" || /timeout/i.test(error?.message || "")
         ? "업데이트 서버 응답 시간이 초과되었습니다."
+        : /GitHub API 5\d\d/.test(error?.message || "")
+          ? "GitHub API가 일시적으로 응답하지 않습니다."
         : error.message;
     return { ...base, available: false, error: message };
   }
