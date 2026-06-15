@@ -6,4 +6,5 @@ snapshots/
 dist/
 updates/
 .codex-session-manager.json
+.codex-session-manager.pid
 .codex-session-manager-update.json

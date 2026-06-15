@@ -10,7 +10,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
-import { createReadStream } from "node:fs";
+import { createReadStream, rmSync } from "node:fs";
 import { execFile, spawn } from "node:child_process";
 import { homedir } from "node:os";
 import {
@@ -31,6 +31,7 @@ const PACKAGE_JSON_PATH = join(__dirname, "package.json");
 const DEFAULT_CODEX_HOME = process.env.CODEX_HOME || join(homedir(), ".codex");
 const DEFAULT_BACKUPS_ROOT = join(__dirname, "backups");
 const CONFIG_PATH = join(__dirname, ".codex-session-manager.json");
+const PID_PATH = join(__dirname, ".codex-session-manager.pid");
 const UPDATE_STATE_PATH = join(__dirname, ".codex-session-manager-update.json");
 const UPDATE_WORK_DIR = join(__dirname, "updates");
 const UPDATE_REPO = process.env.CODEX_SESSION_MANAGER_UPDATE_REPO || "HiddenAndy/codex-session-manager";
@@ -185,6 +186,14 @@ let activeRequests = 0;
 function noteHeartbeat() {
   heartbeatStarted = true;
   lastHeartbeatAt = Date.now();
+}
+
+async function writePidFile() {
+  await writeFile(PID_PATH, `${process.pid}\n`, "utf8").catch(() => {});
+}
+
+async function removePidFile() {
+  await rm(PID_PATH, { force: true }).catch(() => {});
 }
 
 function json(res, statusCode, data) {
@@ -507,7 +516,7 @@ LOG_FILE="$LOG_DIR/update-$(date +%Y%m%d-%H%M%S).log"
   fi
   BACKUP_DIR="$APP_DIR/updates/backup-$(date +%Y%m%d-%H%M%S)"
   mkdir -p "$BACKUP_DIR"
-  for item in README.md package.json package-lock.json server.mjs start.command public; do
+  for item in README.md package.json package-lock.json server.mjs start.command stop.command public; do
     if [ -e "$APP_DIR/$item" ]; then
       mv "$APP_DIR/$item" "$BACKUP_DIR/$item"
     fi
@@ -517,9 +526,11 @@ LOG_FILE="$LOG_DIR/update-$(date +%Y%m%d-%H%M%S).log"
   cp "$SRC_DIR/package-lock.json" "$APP_DIR/package-lock.json"
   cp "$SRC_DIR/server.mjs" "$APP_DIR/server.mjs"
   cp "$SRC_DIR/start.command" "$APP_DIR/start.command"
+  cp "$SRC_DIR/stop.command" "$APP_DIR/stop.command"
   rm -rf "$APP_DIR/public"
   cp -R "$SRC_DIR/public" "$APP_DIR/public"
   chmod +x "$APP_DIR/start.command" || true
+  chmod +x "$APP_DIR/stop.command" || true
   cat > "$UPDATE_STATE" <<'UPDATE_STATE_JSON'
 ${JSON.stringify(updateState, null, 2)}
 UPDATE_STATE_JSON
@@ -2559,6 +2570,21 @@ server.listen(PORT, "127.0.0.1", () => {
   console.log(`Codex session manager: http://127.0.0.1:${PORT}`);
   console.log(`CODEX_HOME=${CODEX_HOME}`);
   if (AUTO_SHUTDOWN) console.log(`Auto shutdown enabled: heartbeat timeout ${HEARTBEAT_TIMEOUT_MS}ms`);
+  writePidFile();
+});
+
+process.on("exit", () => {
+  try {
+    rmSync(PID_PATH, { force: true });
+  } catch {
+    // Best effort cleanup only.
+  }
+});
+process.on("SIGINT", () => {
+  removePidFile().finally(() => process.exit(130));
+});
+process.on("SIGTERM", () => {
+  removePidFile().finally(() => process.exit(143));
 });
 
 if (AUTO_SHUTDOWN) {
