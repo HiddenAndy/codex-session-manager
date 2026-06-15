@@ -920,6 +920,53 @@ input[readonly] {
   gap: 8px;
 }
 
+.backup-empty {
+  min-height: 360px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-inner);
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+  color: var(--muted);
+  padding: 56px 24px;
+  text-align: center;
+}
+
+.backup-empty-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 104px;
+  height: 104px;
+  border: 2px dashed #cbd5e1;
+  border-radius: 999px;
+  color: #7c889b;
+}
+
+.backup-empty-icon .lucide {
+  width: 46px;
+  height: 46px;
+  stroke-width: 1.8;
+}
+
+.backup-empty h3 {
+  margin: 8px 0 0;
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.backup-empty p {
+  max-width: 560px;
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.75;
+}
+
 .thread-groups {
   display: grid;
   gap: 16px;

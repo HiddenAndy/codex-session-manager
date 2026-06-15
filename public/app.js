@@ -940,8 +940,18 @@ function renderBackups() {
           </span>
         </div>`,
       )
-      .join("") || `<p>백업이 없습니다.</p>`;
+      .join("") || renderEmptyBackups();
   renderIcons($("#backupsList"));
+}
+
+function renderEmptyBackups() {
+  return `<div class="backup-empty">
+    <div class="backup-empty-icon" aria-hidden="true">
+      <span data-lucide="folder-x"></span>
+    </div>
+    <h3>아직 생성된 백업이 없습니다</h3>
+    <p>복구·수정·삭제 작업 전 자동 백업이 생성됩니다.<br />백업이 생기면 이곳에서 되돌리기와 삭제를 할 수 있습니다.</p>
+  </div>`;
 }
 
 function renderBackupSelect(backup) {
