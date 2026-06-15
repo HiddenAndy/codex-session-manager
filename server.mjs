@@ -538,22 +538,10 @@ UPDATE_STATE_JSON
   echo "Update complete. Backup: $BACKUP_DIR"
   if command -v npm >/dev/null 2>&1; then
     npm --prefix "$APP_DIR" install
-    RESTART_LOG="$LOG_DIR/session-manager-restart-$(date +%Y%m%d-%H%M%S).log"
-    CODEX_SESSION_MANAGER_AUTO_SHUTDOWN=1 PORT="$PORT" nohup npm --prefix "$APP_DIR" start >>"$RESTART_LOG" 2>&1 &
-    NEW_SERVER_PID=$!
-    URL="http://127.0.0.1:$PORT/"
-    for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24; do
-      if curl -fsS "$URL" >/dev/null 2>&1; then
-        break
-      fi
-      if ! kill -0 "$NEW_SERVER_PID" >/dev/null 2>&1; then
-        echo "Restarted server exited early. Log: $RESTART_LOG"
-        break
-      fi
-      sleep 0.25
-    done
     if command -v open >/dev/null 2>&1; then
-      open "$URL" >/dev/null 2>&1 || true
+      open "$APP_DIR/start.command" >/dev/null 2>&1 || true
+    else
+      echo "Update installed. Run start.command to restart the server."
     fi
   else
     echo "npm command not found; update installed but server was not restarted."
