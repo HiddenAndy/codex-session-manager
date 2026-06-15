@@ -554,12 +554,17 @@ main {
   margin-bottom: 0;
 }
 
+.settings-preflight {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
 .settings-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   margin-bottom: 14px;
-  padding-right: 48px;
 }
 
 .side-heading-description {
@@ -581,7 +586,7 @@ main {
 }
 
 .codex-closed-note {
-  margin: 2px 0 18px;
+  margin: 0;
   border: 1px solid #bfdbfe;
   border-radius: var(--radius-inner);
   background: #eff6ff;
