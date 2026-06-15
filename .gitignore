@@ -1,0 +1,9 @@
+.DS_Store
+node_modules/
+logs/
+backups/
+snapshots/
+dist/
+updates/
+.codex-session-manager.json
+.codex-session-manager-update.json
