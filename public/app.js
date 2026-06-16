@@ -577,6 +577,7 @@ function renderProjectSection(project, projectGroups) {
       </div>
       <span class="project-actions">
         ${!isGeneralChat && hasAutoRepairableChats ? `<button class="small" type="button" data-repair-chats="${escapeHtml(project)}">채팅 자동 복구</button>` : ""}
+        ${!isGeneralChat && !isNoProject && !hasMissingProjectPath && !hasMissingCodexRegistration ? renderCodexClosedOnlyButton(`<button class="small" type="button" data-move-project="${escapeHtml(project)}"${codexClosedOnlyAttrs}>프로젝트 경로 변경</button>`) : ""}
         ${!isGeneralChat && !isNoProject && !hasMissingProjectPath && !hasMissingCodexRegistration ? renderCodexClosedOnlyButton(`<button class="small" type="button" data-rename-project="${escapeHtml(project)}"${codexClosedOnlyAttrs}>프로젝트명 변경</button>`) : ""}
         ${!isGeneralChat && hasMissingProjectPath ? renderCodexClosedOnlyButton(`<button class="small" type="button" data-repair-project="${escapeHtml(project)}"${codexClosedOnlyAttrs}>경로 재설정</button>`) : ""}
         ${!isGeneralChat && hasMissingCodexRegistration && !hasMissingProjectPath ? renderCodexClosedOnlyButton(`<button class="small" type="button" data-repair-project-registration="${escapeHtml(project)}"${codexClosedOnlyAttrs}>참조 복구</button>`) : ""}
@@ -1161,6 +1162,16 @@ function validateProjectNameInput(value) {
   return name;
 }
 
+function projectBaseName(project) {
+  return String(project || "").split("/").filter(Boolean).at(-1) || "";
+}
+
+function projectParentPath(project) {
+  const value = String(project || "");
+  const name = projectBaseName(value);
+  return name ? value.slice(0, value.length - name.length).replace(/\/$/, "") || "/" : value;
+}
+
 async function repairProjectPath(from) {
   if (!(await ensureCodexClosedForProjectChange())) return;
   const result = await api("/api/select-path", {
@@ -1189,9 +1200,47 @@ async function repairProjectPath(from) {
   renderBackups();
 }
 
+async function moveProjectPath(project) {
+  if (!(await ensureCodexClosedForProjectChange())) return;
+  const result = await api("/api/select-path", {
+    method: "POST",
+    body: JSON.stringify({ kind: "directory", currentPath: projectParentPath(project) }),
+  });
+  if (result.canceled) return;
+  const parent = result.path;
+  const name = projectBaseName(project);
+  if (!parent) return;
+  const to = `${parent.replace(/\/$/, "")}/${name}`;
+  if (to === project) return;
+  if (
+    !(await showConfirm(
+      `실제 프로젝트 폴더를 이동할까요?\n\n기존 경로: ${project}\n새 경로: ${to}\n\nCodex 세션/DB/프로젝트 목록 참조도 함께 갱신합니다.`,
+      { confirmText: "변경" },
+    ))
+  ) {
+    return;
+  }
+  setProjectSectionLoading(project, "프로젝트 경로를 변경하는 중...");
+  await api("/api/move-project", {
+    method: "POST",
+    body: JSON.stringify({ project, parent }),
+  });
+  expandedProjects.delete(projectKey(project));
+  expandedProjects.add(projectKey(to));
+  if ($("#projectFilter").value === project) $("#projectFilter").value = to;
+  state = await api("/api/summary");
+  $("#subtitle").textContent = `${state.codexHome} · ${new Date(state.generatedAt).toLocaleString("ko-KR")} 생성`;
+  normalizeSelectedThreads();
+  renderCodexHome();
+  renderFilters();
+  updateSearchClearButton();
+  updateProjectSections(project, to);
+  renderBackups();
+}
+
 async function renameProjectPath(project) {
   if (!(await ensureCodexClosedForProjectChange())) return;
-  const currentName = project.split("/").filter(Boolean).at(-1) || "";
+  const currentName = projectBaseName(project);
   const input = await showPrompt(`실제 프로젝트 폴더명을 변경하고 Codex 참조를 함께 갱신합니다.\n\n현재 경로: ${project}\n\n새 폴더명을 입력하세요.`, {
     title: "프로젝트명 변경",
     label: "새 폴더명",
@@ -1622,6 +1671,12 @@ $("#threadGroups").addEventListener("click", (event) => {
   if (repairProjectButton) {
     event.stopPropagation();
     repairProjectPath(repairProjectButton.dataset.repairProject).catch(showError);
+    return;
+  }
+  const moveProjectButton = event.target.closest("[data-move-project]");
+  if (moveProjectButton) {
+    event.stopPropagation();
+    moveProjectPath(moveProjectButton.dataset.moveProject).catch(showError);
     return;
   }
   const renameProjectButton = event.target.closest("[data-rename-project]");

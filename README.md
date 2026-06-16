@@ -27,6 +27,7 @@ npm start
 - Release asset 이름은 `codex-session-manager.zip`이어야 합니다.
 - Release가 없으면 저장소 기본 브랜치 zip을 확인합니다.
 - 설치 전 기존 앱 파일은 `updates/backup-*`에 백업됩니다.
+- 설치가 끝나면 업데이트 zip, 추출 폴더, 실행 스크립트, 업데이트 백업은 정리됩니다.
 - 로컬 설정, 로그, 백업, 스냅샷, dist 파일은 업데이트로 덮어쓰지 않습니다.
 
 Release용 zip은 다음 명령으로 생성합니다.
@@ -56,8 +57,9 @@ npm run package:release
 ## Mutations
 
 The UI can run a `cwd` repair across session JSONL files and the SQLite `threads`
-table. It writes a backup under `~/.codex/backups/codex_session_manager_cwd_*`
-before mutating anything.
+table, and can move a project directory while updating Codex references. It
+writes a backup under `~/.codex/backups/codex_session_manager_cwd_*` before
+mutating anything.
 
 The backup delete button is intentionally limited to:
 

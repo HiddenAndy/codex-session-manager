@@ -46,6 +46,7 @@ let SESSION_INDEX = join(CODEX_HOME, "session_index.jsonl");
 let CODEX_CONFIG_TOML = join(CODEX_HOME, "config.toml");
 let CODEX_GLOBAL_STATE = join(CODEX_HOME, ".codex-global-state.json");
 let CODEX_GLOBAL_STATE_BAK = join(CODEX_HOME, ".codex-global-state.json.bak");
+let CODEX_CHAT_PROCESSES = join(CODEX_HOME, "process_manager", "chat_processes.json");
 const PORT = Number(process.env.PORT || 4317);
 const AUTO_SHUTDOWN = process.env.CODEX_SESSION_MANAGER_AUTO_SHUTDOWN === "1";
 const HEARTBEAT_TIMEOUT_MS = Number(process.env.CODEX_SESSION_MANAGER_HEARTBEAT_TIMEOUT_MS || 120000);
@@ -85,6 +86,7 @@ function applyConfigPaths(config = {}) {
   CODEX_CONFIG_TOML = join(CODEX_HOME, "config.toml");
   CODEX_GLOBAL_STATE = join(CODEX_HOME, ".codex-global-state.json");
   CODEX_GLOBAL_STATE_BAK = join(CODEX_HOME, ".codex-global-state.json.bak");
+  CODEX_CHAT_PROCESSES = join(CODEX_HOME, "process_manager", "chat_processes.json");
 }
 
 async function loadConfig() {
@@ -544,6 +546,14 @@ UPDATE_STATE=${shellQuote(UPDATE_STATE_PATH)}
 LOG_DIR="$APP_DIR/logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/update-$(date +%Y%m%d-%H%M%S).log"
+cleanup_update_work() {
+  rm -f "$ZIP_PATH"
+  rm -f "$0"
+  find "$APP_DIR/updates" -maxdepth 1 -type d -name 'extract.*' -exec rm -rf {} + 2>/dev/null || true
+  find "$APP_DIR/updates" -maxdepth 1 -type d -name 'backup-*' -exec rm -rf {} + 2>/dev/null || true
+  find "$APP_DIR/updates" -maxdepth 1 -type f -name 'codex-session-manager-update-*.zip' -delete 2>/dev/null || true
+  find "$APP_DIR/updates" -maxdepth 1 -type f -name 'run-update-*.sh' -delete 2>/dev/null || true
+}
 {
   echo "Codex Session Manager update start: $(date)"
   echo "Source: ${candidate.source} ${candidate.label || ""}"
@@ -587,8 +597,8 @@ LOG_FILE="$LOG_DIR/update-$(date +%Y%m%d-%H%M%S).log"
   cat > "$UPDATE_STATE" <<'UPDATE_STATE_JSON'
 ${JSON.stringify(updateState, null, 2)}
 UPDATE_STATE_JSON
-  rm -rf "$TMP_DIR"
-  echo "Update complete. Backup: $BACKUP_DIR"
+  cleanup_update_work
+  echo "Update complete. Update work files cleaned."
   if command -v npm >/dev/null 2>&1; then
     npm --prefix "$APP_DIR" install
     if command -v open >/dev/null 2>&1; then
@@ -1403,6 +1413,7 @@ async function backupStateFiles(backupDir) {
   await backupFileIfExists(CODEX_CONFIG_TOML, join(backupDir, "config.toml"));
   await backupFileIfExists(CODEX_GLOBAL_STATE, join(backupDir, ".codex-global-state.json"));
   await backupFileIfExists(CODEX_GLOBAL_STATE_BAK, join(backupDir, ".codex-global-state.json.bak"));
+  await backupFileIfExists(CODEX_CHAT_PROCESSES, join(backupDir, "process_manager", "chat_processes.json"));
   if (await exists(STATE_DB)) {
     await sqlite([STATE_DB, `.backup '${join(backupDir, "state_5.sqlite")}'`]);
   }
@@ -1662,6 +1673,25 @@ async function replaceCodexProjectGlobalState(fromValues, to, options = {}) {
       globalStateBackup: backup,
     },
   };
+}
+
+async function replaceCodexChatProcesses(fromValues, to) {
+  if (!(await exists(CODEX_CHAT_PROCESSES))) return { changed: false, reason: "missing-chat-processes" };
+  const normalizedTo = normalizeAbsolutePath(to);
+  const fromSet = new Set(fromValues.flatMap(pathMatchVariants).map(normalizeAbsolutePath));
+  const processes = JSON.parse(await readFile(CODEX_CHAT_PROCESSES, "utf8"));
+  if (!Array.isArray(processes)) return { changed: false, reason: "invalid-chat-processes" };
+  let changed = false;
+  let entriesChanged = 0;
+  for (const entry of processes) {
+    if (!entry || typeof entry !== "object" || typeof entry.cwd !== "string") continue;
+    if (!fromSet.has(normalizeAbsolutePath(entry.cwd))) continue;
+    entry.cwd = normalizedTo;
+    changed = true;
+    entriesChanged += 1;
+  }
+  if (changed) await writeFile(CODEX_CHAT_PROCESSES, `${JSON.stringify(processes, null, 2)}\n`, "utf8");
+  return { changed, entriesChanged, path: CODEX_CHAT_PROCESSES };
 }
 
 function removeProjectPathArray(values, targetSet) {
@@ -2040,11 +2070,24 @@ async function repairCwd(payload) {
   const configProject = await replaceCodexProjectConfig(fromValues, to);
   const shouldEnsureGlobalProject = changedFiles.length > 0 || dbChanges > 0 || configProject.changed;
   const globalProject = await replaceCodexProjectGlobalState(fromValues, to, { ensureProject: shouldEnsureGlobalProject });
+  const chatProcesses = await replaceCodexChatProcesses(fromValues, to);
 
   await writeFile(
     join(backupDir, "manifest.json"),
     JSON.stringify(
-      { createdAt: new Date().toISOString(), from, fromValues, to, includeDb, includeJsonl, dbChanges, changedFiles, configProject, globalProject },
+      {
+        createdAt: new Date().toISOString(),
+        from,
+        fromValues,
+        to,
+        includeDb,
+        includeJsonl,
+        dbChanges,
+        changedFiles,
+        configProject,
+        globalProject,
+        chatProcesses,
+      },
       null,
       2,
     ),
@@ -2077,6 +2120,34 @@ async function renameProject(payload) {
   await rename(from, to);
   const repair = await repairCwd({ from, to, includeJsonl: true, includeDb: true });
   return { from, to, repair };
+}
+
+async function moveProject(payload) {
+  await assertCodexClosed();
+  const from = normalizeAbsolutePath(payload.project);
+  const parent = normalizeAbsolutePath(payload.parent);
+  if (!from.startsWith("/") || !parent.startsWith("/")) throw new Error("project and parent must be absolute paths");
+  const fromStat = await stat(from).catch(() => null);
+  if (!fromStat?.isDirectory()) throw new Error("project directory not found");
+  const parentStat = await stat(parent).catch(() => null);
+  if (!parentStat?.isDirectory()) throw new Error("target parent directory not found");
+  const to = join(parent, basename(from));
+  if (to === from) throw new Error("project path is unchanged");
+  if (resolve(to).startsWith(`${resolve(from)}/`)) throw new Error("target path must not be inside the project directory");
+  if (await exists(to)) throw new Error("target project directory already exists");
+
+  await movePath(from, to);
+  try {
+    const repair = await repairCwd({ from, to, includeJsonl: true, includeDb: true });
+    return { from, parent, to, repair };
+  } catch (error) {
+    try {
+      await movePath(to, from);
+    } catch (rollbackError) {
+      throw new Error(`project moved to ${to}, but Codex references were not updated and rollback failed: ${rollbackError.message}`);
+    }
+    throw error;
+  }
 }
 
 async function repairProjectRegistration(payload) {
@@ -2547,6 +2618,10 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === "POST" && url.pathname === "/api/rename-project") {
       json(res, 200, await renameProject(await readRequestBody(req)));
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/api/move-project") {
+      json(res, 200, await moveProject(await readRequestBody(req)));
       return;
     }
     if (req.method === "POST" && url.pathname === "/api/repair-project-registration") {
