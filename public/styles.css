@@ -1454,7 +1454,10 @@ code {
 }
 
 .app-modal-card {
+  display: flex;
+  flex-direction: column;
   width: min(520px, 100%);
+  max-height: calc(100vh - 48px);
   border: 1px solid var(--border);
   border-radius: 8px;
   background: #fff;
@@ -1463,12 +1466,23 @@ code {
 }
 
 .app-modal-card h2 {
-  margin-bottom: 12px;
+  margin-bottom: 6px;
   font-size: 18px;
 }
 
+.app-modal-meta {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.app-modal-meta[hidden] {
+  display: none;
+}
+
 .app-modal-message {
-  max-height: min(46vh, 420px);
   overflow: auto;
   color: var(--text);
   white-space: pre-wrap;
@@ -1540,7 +1554,6 @@ code {
 
 .app-modal[data-variant="patch-notes"] .app-modal-message code {
   display: inline;
-  min-height: 0;
   border-radius: 4px;
   background: rgba(15, 118, 110, 0.1);
   color: #115e59;

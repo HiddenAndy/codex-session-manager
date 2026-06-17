@@ -273,11 +273,14 @@ function startCodexProcessPolling() {
 function closeModal(result) {
   const modal = $("#appModal");
   if (!modal || modal.hidden) return;
+  const metaEl = $("#appModalMeta");
   const inputWrap = $("#appModalInputWrap");
   const input = $("#appModalInput");
   if (result === true && modalInputMode) result = input.value;
   modal.hidden = true;
   delete modal.dataset.variant;
+  metaEl.hidden = true;
+  metaEl.textContent = "";
   inputWrap.hidden = true;
   input.value = "";
   modalInputMode = false;
@@ -288,9 +291,10 @@ function closeModal(result) {
   modalPreviousFocus = null;
 }
 
-function showModal({ title = "확인", message = "", confirmText = "확인", cancelText = null, danger = false, variant = "" } = {}) {
+function showModal({ title = "확인", message = "", confirmText = "확인", cancelText = null, danger = false, variant = "", meta = "" } = {}) {
   const modal = $("#appModal");
   const titleEl = $("#appModalTitle");
+  const metaEl = $("#appModalMeta");
   const messageEl = $("#appModalMessage");
   const confirmButton = $("#appModalConfirm");
   const cancelButton = $("#appModalCancel");
@@ -302,6 +306,8 @@ function showModal({ title = "확인", message = "", confirmText = "확인", can
   if (variant) modal.dataset.variant = variant;
   else delete modal.dataset.variant;
   titleEl.textContent = title;
+  metaEl.textContent = meta;
+  metaEl.hidden = !meta;
   if (variant === "patch-notes") messageEl.innerHTML = renderPatchNotesMarkdown(message);
   else messageEl.textContent = message;
   inputWrap.hidden = true;
@@ -331,6 +337,8 @@ function showPrompt(message, options = {}) {
   modalPreviousFocus = document.activeElement;
   modalInputMode = true;
   delete modal.dataset.variant;
+  $("#appModalMeta").hidden = true;
+  $("#appModalMeta").textContent = "";
   titleEl.textContent = options.title || "입력";
   messageEl.textContent = String(message || "");
   inputLabel.textContent = options.label || "입력";
@@ -351,15 +359,24 @@ function showPrompt(message, options = {}) {
 }
 
 function showAlert(message, title = "알림", options = {}) {
-  return showModal({ title, message: String(message || ""), confirmText: "확인", variant: options.variant || "" });
+  return showModal({
+    title,
+    message: String(message || ""),
+    confirmText: "확인",
+    variant: options.variant || "",
+    meta: options.meta || "",
+  });
 }
 
 async function maybeShowUpdateNotice() {
   const notice = await api("/api/update-notice");
   if (!notice.show) return;
   const updatedAtMs = Date.parse(notice.updatedAt || "");
-  const updatedAtText = Number.isFinite(updatedAtMs) ? `**업데이트 일시**: ${formatDate(updatedAtMs)}\n\n` : "";
-  await showAlert(`${updatedAtText}${PATCH_NOTES_PREVIEW}`, `${notice.currentVersion || "0.1.4"} 업데이트 내용`, { variant: "patch-notes" });
+  const updatedAtText = Number.isFinite(updatedAtMs) ? `업데이트 일시: ${formatDate(updatedAtMs)}` : "";
+  await showAlert(PATCH_NOTES_PREVIEW, `${notice.currentVersion || "0.1.4"} 업데이트 내용`, {
+    variant: "patch-notes",
+    meta: updatedAtText,
+  });
   await api("/api/update-notice/read", { method: "POST", body: JSON.stringify({}) });
 }
 
