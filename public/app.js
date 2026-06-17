@@ -357,7 +357,9 @@ function showAlert(message, title = "알림", options = {}) {
 async function maybeShowUpdateNotice() {
   const notice = await api("/api/update-notice");
   if (!notice.show) return;
-  await showAlert(PATCH_NOTES_PREVIEW, `${notice.currentVersion || "0.1.4"} 업데이트 내용`, { variant: "patch-notes" });
+  const updatedAtMs = Date.parse(notice.updatedAt || "");
+  const updatedAtText = Number.isFinite(updatedAtMs) ? `**업데이트 일시**: ${formatDate(updatedAtMs)}\n\n` : "";
+  await showAlert(`${updatedAtText}${PATCH_NOTES_PREVIEW}`, `${notice.currentVersion || "0.1.4"} 업데이트 내용`, { variant: "patch-notes" });
   await api("/api/update-notice/read", { method: "POST", body: JSON.stringify({}) });
 }
 
