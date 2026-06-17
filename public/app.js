@@ -373,7 +373,8 @@ async function maybeShowUpdateNotice() {
   if (!notice.show) return;
   const updatedAtMs = Date.parse(notice.updatedAt || "");
   const updatedAtText = Number.isFinite(updatedAtMs) ? `업데이트 일시: ${formatDate(updatedAtMs)}` : "";
-  await showAlert(PATCH_NOTES_PREVIEW, `${notice.currentVersion || "0.1.4"} 업데이트 내용`, {
+  const title = `${notice.currentVersion ? `${notice.currentVersion} ` : ""}업데이트 내용`;
+  await showAlert(PATCH_NOTES_PREVIEW, title, {
     variant: "patch-notes",
     meta: updatedAtText,
   });
