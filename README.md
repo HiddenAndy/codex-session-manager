@@ -38,6 +38,7 @@ npm run package:release
 
 생성된 `dist/codex-session-manager.zip`을 GitHub Release asset으로 업로드합니다.
 버전 기반 업데이트를 쓰려면 `package.json`의 `version`을 올리고, 같은 버전의 태그를 `v0.1.1`처럼 생성합니다.
+업데이트 모달에 들어갈 패치노트는 [docs/patch-notes.md](docs/patch-notes.md) 기준으로 작성합니다.
 
 필요하면 환경 변수로 업데이트 소스를 바꿀 수 있습니다.
 

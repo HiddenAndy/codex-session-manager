@@ -122,13 +122,11 @@
           <section id="helpPanel" class="help-panel" aria-labelledby="helpPanelTitle">
             <div class="help-panel-header">
               <div class="help-title-group">
-                <div>
-                  <h2 id="helpPanelTitle">사용 가이드</h2>
-                </div>
+                <h2 id="helpPanelTitle">사용 가이드</h2>
               </div>
             </div>
             <div class="guide-timeline">
-              <section class="guide-card guide-card-blue">
+              <section class="guide-card guide-card-blue" data-guide-order="1">
                 <div class="guide-marker" aria-hidden="true"><span data-lucide="play"></span></div>
                 <div class="guide-card-body">
                   <button class="guide-card-toggle" type="button" aria-expanded="false" aria-controls="guideStart">
@@ -144,7 +142,7 @@
                   </div>
                 </div>
               </section>
-              <section class="guide-card guide-card-sky">
+              <section class="guide-card guide-card-sky" data-guide-order="2">
                 <div class="guide-marker" aria-hidden="true"><span data-lucide="search"></span></div>
                 <div class="guide-card-body">
                   <button class="guide-card-toggle" type="button" aria-expanded="false" aria-controls="guideProjectStatus">
@@ -162,7 +160,7 @@
                   </div>
                 </div>
               </section>
-              <section class="guide-card guide-card-green">
+              <section class="guide-card guide-card-green" data-guide-order="3">
                 <div class="guide-marker" aria-hidden="true"><span data-lucide="wrench"></span></div>
                 <div class="guide-card-body">
                   <button class="guide-card-toggle" type="button" aria-expanded="false" aria-controls="guideSessionStatus">
@@ -181,7 +179,7 @@
                   </div>
                 </div>
               </section>
-              <section class="guide-card guide-card-orange">
+              <section class="guide-card guide-card-orange" data-guide-order="4">
                 <div class="guide-marker" aria-hidden="true"><span data-lucide="trash-2"></span></div>
                 <div class="guide-card-body">
                   <button class="guide-card-toggle" type="button" aria-expanded="false" aria-controls="guideRename">
@@ -197,7 +195,7 @@
                   </div>
                 </div>
               </section>
-              <section class="guide-card guide-card-violet">
+              <section class="guide-card guide-card-violet" data-guide-order="5">
                 <div class="guide-marker" aria-hidden="true"><span data-lucide="archive-restore"></span></div>
                 <div class="guide-card-body">
                   <button class="guide-card-toggle" type="button" aria-expanded="false" aria-controls="guideBackup">
@@ -234,6 +232,8 @@
         </div>
       </div>
     </div>
+
+    <div id="fanfareOverlay" class="fanfare-overlay" aria-live="polite" hidden></div>
 
     <script src="/vendor/lucide/lucide.min.js"></script>
     <script src="/app.js" type="module"></script>

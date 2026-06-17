@@ -40,6 +40,7 @@ const UPDATE_BRANCH = process.env.CODEX_SESSION_MANAGER_UPDATE_BRANCH || "";
 const UPDATE_REQUEST_TIMEOUT_MS = Number(process.env.CODEX_SESSION_MANAGER_UPDATE_TIMEOUT_MS || 8000);
 let CODEX_HOME = DEFAULT_CODEX_HOME;
 let SESSIONS_ROOT = join(CODEX_HOME, "sessions");
+let ARCHIVED_SESSIONS_ROOT = join(CODEX_HOME, "archived_sessions");
 let BACKUPS_ROOT = DEFAULT_BACKUPS_ROOT;
 let STATE_DB = defaultStateDbPath(CODEX_HOME);
 let SESSION_INDEX = join(CODEX_HOME, "session_index.jsonl");
@@ -80,6 +81,7 @@ function normalizeBackupsRoot(value, fallback = DEFAULT_BACKUPS_ROOT) {
 function applyConfigPaths(config = {}) {
   CODEX_HOME = resolveConfigPath(config.codexHome, DEFAULT_CODEX_HOME);
   SESSIONS_ROOT = resolveConfigPath(config.sessionsRoot, join(CODEX_HOME, "sessions"));
+  ARCHIVED_SESSIONS_ROOT = join(CODEX_HOME, "archived_sessions");
   BACKUPS_ROOT = normalizeBackupsRoot(config.backupsRoot, DEFAULT_BACKUPS_ROOT);
   STATE_DB = resolveConfigPath(config.stateDb, defaultStateDbPath(CODEX_HOME));
   SESSION_INDEX = join(CODEX_HOME, "session_index.jsonl");
@@ -350,6 +352,33 @@ async function writeUpdateState(state) {
   await writeFile(UPDATE_STATE_PATH, `${JSON.stringify(state, null, 2)}\n`, "utf8");
 }
 
+async function getUpdateNotice() {
+  const state = await readUpdateState();
+  if (!state.updatedAt) return { show: false, currentVersion: APP_PACKAGE.version };
+  const stateVersion = normalizeVersion(state.version || "");
+  const currentVersion = APP_PACKAGE.version;
+  const sameInstalledVersion = !stateVersion || stateVersion === currentVersion || state.source === "branch";
+  const alreadyShown = state.noticeShownFor === currentVersion;
+  return {
+    show: sameInstalledVersion && !alreadyShown,
+    currentVersion,
+    label: state.label || `v${currentVersion}`,
+    source: state.source || "",
+    updatedAt: state.updatedAt || "",
+  };
+}
+
+async function markUpdateNoticeRead() {
+  const state = await readUpdateState();
+  if (!state.updatedAt) return { ok: true, changed: false };
+  await writeUpdateState({
+    ...state,
+    noticeShownFor: APP_PACKAGE.version,
+    noticeShownAt: new Date().toISOString(),
+  });
+  return { ok: true, changed: true };
+}
+
 function updateHeaders() {
   const headers = {
     "accept": "application/vnd.github+json",
@@ -579,7 +608,7 @@ cleanup_update_work() {
   fi
   BACKUP_DIR="$APP_DIR/updates/backup-$(date +%Y%m%d-%H%M%S)"
   mkdir -p "$BACKUP_DIR"
-  for item in README.md package.json package-lock.json server.mjs start.command stop.command public; do
+  for item in README.md package.json package-lock.json server.mjs start.command stop.command public docs; do
     if [ -e "$APP_DIR/$item" ]; then
       mv "$APP_DIR/$item" "$BACKUP_DIR/$item"
     fi
@@ -590,6 +619,10 @@ cleanup_update_work() {
   cp "$SRC_DIR/server.mjs" "$APP_DIR/server.mjs"
   cp "$SRC_DIR/start.command" "$APP_DIR/start.command"
   cp "$SRC_DIR/stop.command" "$APP_DIR/stop.command"
+  if [ -d "$SRC_DIR/docs" ]; then
+    rm -rf "$APP_DIR/docs"
+    cp -R "$SRC_DIR/docs" "$APP_DIR/docs"
+  fi
   rm -rf "$APP_DIR/public"
   cp -R "$SRC_DIR/public" "$APP_DIR/public"
   chmod +x "$APP_DIR/start.command" || true
@@ -766,38 +799,53 @@ async function loadIndex() {
   return rows;
 }
 
+function sessionFileRoots() {
+  return [...new Set([SESSIONS_ROOT, ARCHIVED_SESSIONS_ROOT].map((path) => resolve(path)))];
+}
+
+function isManagedSessionFilePath(filePath) {
+  const resolved = resolve(filePath);
+  return sessionFileRoots().some((root) => isInside(resolved, root));
+}
+
+function backupPathForSessionFile(backupDir, filePath) {
+  return join(backupDir, relative(CODEX_HOME, filePath));
+}
+
 async function loadSessionFiles() {
   const files = [];
-  for await (const path of walk(SESSIONS_ROOT)) {
-    if (!path.endsWith(".jsonl")) continue;
-    const name = basename(path);
-    const st = await stat(path);
-    let meta = null;
-    let parseError = null;
-    try {
-      const first = await readJsonlMeta(path);
-      meta = first?.type === "session_meta" ? first.payload : null;
-    } catch (error) {
-      parseError = error.message;
+  for (const root of sessionFileRoots()) {
+    for await (const path of walk(root)) {
+      if (!path.endsWith(".jsonl")) continue;
+      const name = basename(path);
+      const st = await stat(path);
+      let meta = null;
+      let parseError = null;
+      try {
+        const first = await readJsonlMeta(path);
+        meta = first?.type === "session_meta" ? first.payload : null;
+      } catch (error) {
+        parseError = error.message;
+      }
+      files.push({
+        path,
+        relativePath: relative(CODEX_HOME, path),
+        name,
+        size: st.size,
+        mtimeMs: st.mtimeMs,
+        canonicalName: CANONICAL_ROLLOUT_RE.test(name),
+        isBak: name.endsWith("_bak.jsonl"),
+        parseError,
+        id: meta?.id || null,
+        cwd: meta?.cwd || null,
+        threadSource: meta?.thread_source || null,
+        parentThreadId: meta?.parent_thread_id || meta?.source?.subagent?.thread_spawn?.parent_thread_id || null,
+        agentNickname: meta?.agent_nickname || meta?.source?.subagent?.thread_spawn?.agent_nickname || null,
+        agentRole: meta?.agent_role || meta?.source?.subagent?.thread_spawn?.agent_role || null,
+        source: typeof meta?.source === "string" ? meta.source : meta?.source ? "object" : null,
+        gitBranch: meta?.git?.branch || null,
+      });
     }
-    files.push({
-      path,
-      relativePath: relative(CODEX_HOME, path),
-      name,
-      size: st.size,
-      mtimeMs: st.mtimeMs,
-      canonicalName: CANONICAL_ROLLOUT_RE.test(name),
-      isBak: name.endsWith("_bak.jsonl"),
-      parseError,
-      id: meta?.id || null,
-      cwd: meta?.cwd || null,
-      threadSource: meta?.thread_source || null,
-      parentThreadId: meta?.parent_thread_id || meta?.source?.subagent?.thread_spawn?.parent_thread_id || null,
-      agentNickname: meta?.agent_nickname || meta?.source?.subagent?.thread_spawn?.agent_nickname || null,
-      agentRole: meta?.agent_role || meta?.source?.subagent?.thread_spawn?.agent_role || null,
-      source: typeof meta?.source === "string" ? meta.source : meta?.source ? "object" : null,
-      gitBranch: meta?.git?.branch || null,
-    });
   }
   return files.sort((a, b) => b.mtimeMs - a.mtimeMs);
 }
@@ -919,7 +967,7 @@ async function backupChatTitles(path, type, context) {
     for (const id of Array.isArray(manifest.ids) ? manifest.ids : []) await addById(id, backupTitles.get(id));
     for (const original of Array.isArray(manifest.deletedFiles) ? manifest.deletedFiles : []) {
       const originalExists = await exists(original);
-      const backupCopy = join(path, "sessions", relative(SESSIONS_ROOT, original));
+      const backupCopy = backupPathForSessionFile(path, original);
       const meta = await readSessionMetaIfExists(originalExists ? original : backupCopy);
       if (meta?.id) await addById(meta.id, backupTitles.get(meta.id));
     }
@@ -1009,15 +1057,17 @@ async function backupRestoreStatus(path, type) {
   const hasState = await exists(join(path, "state_5.sqlite"));
   const hasIndex = await exists(join(path, "session_index.jsonl"));
   const hasSessions = await exists(join(path, "sessions"));
+  const hasArchivedSessions = await exists(join(path, "archived_sessions"));
   const hasConfig = await exists(join(path, "config.toml"));
   const looseSessionFiles = await looseBackupSessionFiles(path);
   return {
-    possible: hasState || hasIndex || hasSessions || hasConfig || looseSessionFiles.length > 0,
+    possible: hasState || hasIndex || hasSessions || hasArchivedSessions || hasConfig || looseSessionFiles.length > 0,
     mode: "snapshot",
     restores: {
       stateDb: hasState,
       sessionIndex: hasIndex,
       sessions: hasSessions,
+      archivedSessions: hasArchivedSessions,
       config: hasConfig,
       looseSessionFiles: looseSessionFiles.length,
     },
@@ -1029,7 +1079,7 @@ async function looseBackupSessionFiles(path) {
   for await (const filePath of walk(path)) {
     const rel = relative(path, filePath);
     if (!filePath.endsWith(".jsonl")) continue;
-    if (rel === "session_index.jsonl" || rel.startsWith("sessions/")) continue;
+    if (rel === "session_index.jsonl" || rel.startsWith("sessions/") || rel.startsWith("archived_sessions/")) continue;
     files.push(filePath);
   }
   return files;
@@ -1107,7 +1157,7 @@ async function backupOriginalStatus(path, type) {
     for (const original of originals) {
       const originalExists = await exists(original);
       if (originalExists) existing += 1;
-      const backupCopy = join(path, "sessions", relative(SESSIONS_ROOT, original));
+      const backupCopy = join(path, relative(CODEX_HOME, original));
       const meta = await readSessionMetaIfExists(originalExists ? original : backupCopy);
       if (meta?.cwd) projects.add(meta.cwd);
       if (meta?.id) threadIds.add(meta.id);
@@ -2031,23 +2081,24 @@ async function repairCwd(payload) {
 
   const changedFiles = [];
   if (includeJsonl) {
-    for await (const path of walk(SESSIONS_ROOT)) {
-      if (!path.endsWith(".jsonl")) continue;
-      const textContent = await readFile(path, "utf8");
-      let next = textContent;
-      let replacements = 0;
-      for (const value of fromValues) {
-        const needle = `"cwd":"${value}"`;
-        replacements += next.split(needle).length - 1;
-        next = next.split(needle).join(`"cwd":"${to}"`);
+    for (const root of sessionFileRoots()) {
+      for await (const path of walk(root)) {
+        if (!path.endsWith(".jsonl")) continue;
+        const textContent = await readFile(path, "utf8");
+        let next = textContent;
+        let replacements = 0;
+        for (const value of fromValues) {
+          const needle = `"cwd":"${value}"`;
+          replacements += next.split(needle).length - 1;
+          next = next.split(needle).join(`"cwd":"${to}"`);
+        }
+        if (next === textContent) continue;
+        const backupPath = backupPathForSessionFile(backupDir, path);
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, textContent, "utf8");
+        await writeFile(path, next, "utf8");
+        changedFiles.push({ path, replacements });
       }
-      if (next === textContent) continue;
-      const relativePath = relative(SESSIONS_ROOT, path);
-      const backupPath = join(backupDir, "sessions", relativePath);
-      await mkdir(dirname(backupPath), { recursive: true });
-      await writeFile(backupPath, textContent, "utf8");
-      await writeFile(path, next, "utf8");
-      changedFiles.push({ path, replacements });
     }
   }
 
@@ -2294,29 +2345,32 @@ async function restoreBackup(payload) {
     restoredFiles.push(SESSION_INDEX);
   }
 
-  const backupSessionsRoot = join(target, "sessions");
-  if (await exists(backupSessionsRoot)) {
-    for await (const backupFile of walk(backupSessionsRoot)) {
-      const dest = join(SESSIONS_ROOT, relative(backupSessionsRoot, backupFile));
-      await backupFileIfExists(dest, join(safetyBackupDir, "sessions", relative(SESSIONS_ROOT, dest)));
-      await mkdir(dirname(dest), { recursive: true });
-      await cp(backupFile, dest, { preserveTimestamps: true });
-      restoredFiles.push(dest);
+  for (const sessionDirName of ["sessions", "archived_sessions"]) {
+    const backupSessionsRoot = join(target, sessionDirName);
+    if (await exists(backupSessionsRoot)) {
+      for await (const backupFile of walk(backupSessionsRoot)) {
+        const dest = join(CODEX_HOME, sessionDirName, relative(backupSessionsRoot, backupFile));
+        await backupFileIfExists(dest, backupPathForSessionFile(safetyBackupDir, dest));
+        await mkdir(dirname(dest), { recursive: true });
+        await cp(backupFile, dest, { preserveTimestamps: true });
+        restoredFiles.push(dest);
+      }
     }
   }
 
   for (const backupFile of await looseBackupSessionFiles(target)) {
     const meta = await readSessionMetaIfExists(backupFile);
     const dest = sessionPathFromBackupFile(backupFile, meta);
-    await backupFileIfExists(dest, join(safetyBackupDir, "sessions", relative(SESSIONS_ROOT, dest)));
+    await backupFileIfExists(dest, backupPathForSessionFile(safetyBackupDir, dest));
     await mkdir(dirname(dest), { recursive: true });
     await cp(backupFile, dest, { preserveTimestamps: true });
     restoredFiles.push(dest);
   }
 
+  const prunedMissingSessionThreads = await pruneDbThreadsWithMissingSessionFiles();
   await writeFile(
     join(safetyBackupDir, "manifest.json"),
-    JSON.stringify({ createdAt: new Date().toISOString(), restoreSource: target, restoredFiles }, null, 2),
+    JSON.stringify({ createdAt: new Date().toISOString(), restoreSource: target, restoredFiles, prunedMissingSessionThreads }, null, 2),
     "utf8",
   );
   const titleFix = await fixStoredTitles({ createBackup: false });
@@ -2365,14 +2419,66 @@ async function removeSessionFilesAbsentFromBackupSnapshot(backupDir, manifest, s
   const restoredFiles = Array.isArray(manifest?.restoredFiles) ? manifest.restoredFiles : [];
   for (const file of restoredFiles) {
     const sessionFile = resolve(String(file || ""));
-    if (!isInside(sessionFile, SESSIONS_ROOT) || !sessionFile.endsWith(".jsonl")) continue;
-    const relativePath = relative(SESSIONS_ROOT, sessionFile);
-    const snapshotFile = join(backupDir, "sessions", relativePath);
+    if (!isManagedSessionFilePath(sessionFile) || !sessionFile.endsWith(".jsonl")) continue;
+    const snapshotFile = backupPathForSessionFile(backupDir, sessionFile);
     if (await exists(snapshotFile)) continue;
     if (!(await exists(sessionFile))) continue;
-    await backupFileIfExists(sessionFile, join(safetyBackupDir, "sessions", relativePath));
+    await backupFileIfExists(sessionFile, backupPathForSessionFile(safetyBackupDir, sessionFile));
     await rm(sessionFile, { force: true });
   }
+}
+
+async function pruneDbThreadsWithMissingSessionFiles() {
+  if (!(await exists(STATE_DB))) return { ids: [], dbThreadChanges: 0, dbEdgeChanges: 0, removedIndexRows: 0 };
+  const output = await sqlite([STATE_DB], { input: ".mode tabs\nselect id, rollout_path from threads;" });
+  const ids = [];
+  for (const line of output.trim().split("\n")) {
+    if (!line) continue;
+    const [id, rolloutPath] = line.split("\t");
+    if (!id || !rolloutPath) continue;
+    if (!(await exists(resolve(rolloutPath)))) ids.push(id);
+  }
+  if (ids.length === 0) return { ids, dbThreadChanges: 0, dbEdgeChanges: 0, removedIndexRows: 0 };
+
+  const idList = ids.map(sqlString).join(",");
+  const sql = [
+    ".timeout 5000",
+    "begin immediate;",
+    `delete from thread_spawn_edges where parent_thread_id in (${idList}) or child_thread_id in (${idList});`,
+    "select changes();",
+    `delete from threads where id in (${idList});`,
+    "select changes();",
+    "commit;",
+    "pragma integrity_check;",
+  ].join("\n");
+  const dbOutput = await sqlite([STATE_DB], { input: sql });
+  const lines = dbOutput.trim().split("\n");
+  const dbEdgeChanges = Number(lines[0] || 0);
+  const dbThreadChanges = Number(lines[1] || 0);
+  if (!lines.includes("ok")) throw new Error(`sqlite integrity check failed: ${dbOutput}`);
+
+  let removedIndexRows = 0;
+  const idSet = new Set(ids);
+  if (await exists(SESSION_INDEX)) {
+    const indexLines = (await readFile(SESSION_INDEX, "utf8")).split("\n");
+    const kept = [];
+    for (const line of indexLines) {
+      if (!line) continue;
+      try {
+        const row = JSON.parse(line);
+        if (idSet.has(row.id)) {
+          removedIndexRows += 1;
+          continue;
+        }
+      } catch {
+        // Keep malformed historical rows.
+      }
+      kept.push(line);
+    }
+    await writeFile(SESSION_INDEX, `${kept.join("\n")}${kept.length ? "\n" : ""}`, "utf8");
+  }
+
+  return { ids, dbThreadChanges, dbEdgeChanges, removedIndexRows };
 }
 
 async function deleteThread(payload) {
@@ -2404,10 +2510,10 @@ async function deleteThread(payload) {
   for (const record of records) {
     for (const file of record.files || []) {
       const filePath = resolve(file.path);
-      if (!isInside(filePath, SESSIONS_ROOT) || !filePath.endsWith(".jsonl")) {
+      if (!isManagedSessionFilePath(filePath) || !filePath.endsWith(".jsonl")) {
         throw new Error(`refusing to delete unexpected session file: ${filePath}`);
       }
-      const backupPath = join(backupDir, "sessions", relative(SESSIONS_ROOT, filePath));
+      const backupPath = backupPathForSessionFile(backupDir, filePath);
       await backupFileIfExists(filePath, backupPath);
       await rm(filePath, { force: true });
       deletedFiles.push(filePath);
@@ -2595,6 +2701,10 @@ const server = createServer(async (req, res) => {
       json(res, 200, await getUpdateStatus());
       return;
     }
+    if (req.method === "GET" && url.pathname === "/api/update-notice") {
+      json(res, 200, await getUpdateNotice());
+      return;
+    }
     if (req.method === "POST" && url.pathname === "/api/heartbeat") {
       noteHeartbeat();
       json(res, 200, { ok: true });
@@ -2602,6 +2712,10 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === "POST" && url.pathname === "/api/update") {
       json(res, 200, await installUpdate());
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/api/update-notice/read") {
+      json(res, 200, await markUpdateNoticeRead());
       return;
     }
     if (req.method === "POST" && url.pathname === "/api/shutdown") {

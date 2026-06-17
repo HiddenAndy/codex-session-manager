@@ -7,6 +7,22 @@ const selectedThreads = new Set();
 const selectedBackups = new Set();
 let codexStatus = { open: true, unknown: true };
 const GENERAL_CHAT_LABEL = "일반 채팅";
+const PATCH_NOTES_PREVIEW = `## 이번 업데이트
+
+헷갈리던 표시와 삭제 후 다시 보이던 문제들을 정리했습니다.
+
+### 정리한 것
+- **프로젝트 경로 변경/재설정** 흐름을 안정화했습니다.
+- 삭제한 채팅이 다시 보이던 문제를 수정했습니다.
+- 백업/복원 후 남는 깨진 DB 기록을 정리하도록 했습니다.
+- 상단 문구를 **채팅/프로젝트/백업/진단 요약**으로 바꿨습니다.
+
+### 사용성 개선
+- 검색어를 입력하면 결과 프로젝트가 자동으로 펼쳐집니다.
+- **압축 고려** 뱃지는 제거하고 새 채팅 권장 기준만 남겼습니다.
+- 새 채팅 권장 뱃지에 설명 툴팁을 추가했습니다.
+- 보조 패널은 화면을 넘지 않고 내부에서 스크롤됩니다.
+- 사용 가이드에 작은 **이스터에그**를 넣었습니다.`;
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -15,6 +31,8 @@ let modalPreviousFocus = null;
 let modalInputMode = false;
 let activeTooltipHost = null;
 let updateInfo = null;
+const FANFARE_GUIDE_SEQUENCE = ["1", "5", "2", "4", "3"];
+let fanfareGuideProgress = [];
 
 const issueLabels = {
   "missing-db-thread": "DB 스레드 없음",
@@ -44,7 +62,6 @@ function chatSizeAdvice(size) {
   if (mb >= 50) return { level: "danger", label: "새 채팅 강력 권장", detail: "파일 용량은 정확한 토큰 기준은 아니지만, 이 정도면 핵심 상태만 요약해 새 채팅으로 옮기는 편이 안정적입니다." };
   if (mb >= 30) return { level: "danger", label: "새 채팅 권장", detail: "오래된 로그와 결정이 섞일 수 있습니다. 특별한 이유가 없으면 요약 후 새 채팅을 권장합니다." };
   if (mb >= 15) return { level: "warning", label: "새 채팅 고려", detail: "아직 계속 쓸 수 있지만, 작업 단위가 바뀌었거나 답변이 산만해지면 새 채팅이 낫습니다." };
-  if (mb >= 5) return { level: "notice", label: "압축 고려", detail: "크기만으로 문제는 아니지만, 긴 작업으로 이어질 예정이면 /compact나 짧은 요약을 고려하세요." };
   return null;
 }
 
@@ -77,7 +94,7 @@ function tooltipElement() {
 }
 
 function showGlobalTooltip(host) {
-  const text = host?.dataset?.disabledTooltip;
+  const text = host?.dataset?.disabledTooltip || host?.dataset?.tooltip || host?.getAttribute("title");
   if (!text) return;
   activeTooltipHost = host;
   const tooltip = tooltipElement();
@@ -98,11 +115,105 @@ function showGlobalTooltip(host) {
   tooltip.style.top = `${top}px`;
 }
 
+function renderInlineMarkdown(value) {
+  return escapeHtml(value)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+}
+
+function renderPatchNotesMarkdown(markdown) {
+  const lines = String(markdown || "").split(/\r?\n/);
+  const html = [];
+  let listOpen = false;
+
+  const closeList = () => {
+    if (!listOpen) return;
+    html.push("</ul>");
+    listOpen = false;
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      closeList();
+      continue;
+    }
+
+    const heading = /^(#{2,4})\s+(.+)$/.exec(trimmed);
+    if (heading) {
+      closeList();
+      const level = Math.min(heading[1].length + 1, 4);
+      html.push(`<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`);
+      continue;
+    }
+
+    const bullet = /^-\s+(.+)$/.exec(trimmed);
+    if (bullet) {
+      if (!listOpen) {
+        html.push('<ul class="patch-notes-list">');
+        listOpen = true;
+      }
+      html.push(`<li>${renderInlineMarkdown(bullet[1])}</li>`);
+      continue;
+    }
+
+    closeList();
+    html.push(`<p>${renderInlineMarkdown(trimmed)}</p>`);
+  }
+
+  closeList();
+  return html.join("");
+}
+
 function hideGlobalTooltip(host = null) {
   if (host && host !== activeTooltipHost) return;
   activeTooltipHost = null;
   const tooltip = document.querySelector(".global-tooltip");
   if (tooltip) tooltip.hidden = true;
+}
+
+function showFanfare() {
+  const overlay = $("#fanfareOverlay");
+  if (!overlay) return;
+  const colors = ["#0ea5e9", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6"];
+  const halfWidth = window.innerWidth / 2;
+  const halfHeight = window.innerHeight / 2;
+  const targetX = 0;
+  const targetY = Math.round(window.innerHeight * 0.4 - halfHeight);
+  const pieces = Array.from({ length: 42 }, (_, index) => {
+    const side = index % 2 === 0 ? -1 : 1;
+    const sideIndex = Math.floor(index / 2);
+    const originX = Math.round(side * (halfWidth - 8));
+    const originY = Math.round(halfHeight - 8);
+    const targetAngle = Math.atan2(targetY - originY, targetX - originX);
+    const spread = (-18 + (sideIndex % 7) * 6 + (Math.floor(sideIndex / 7) - 1) * 4) * (Math.PI / 180);
+    const targetDistance = Math.hypot(targetX - originX, targetY - originY);
+    const distanceRatio = 0.28 + ((sideIndex * 5) % 13) * 0.065;
+    const distance = targetDistance * distanceRatio;
+    const x = Math.round(originX + Math.cos(targetAngle + spread) * distance);
+    const y = Math.round(originY + Math.sin(targetAngle + spread) * distance);
+    const color = colors[index % colors.length];
+    const rotation = (index * 37) % 180;
+    return `<span class="fanfare-confetti" style="--confetti-origin-x: ${originX}px; --confetti-origin-y: ${originY}px; --confetti-x: ${x}px; --confetti-y: ${y}px; --confetti-color: ${color}; --confetti-rotation: ${rotation}deg;"></span>`;
+  }).join("");
+  overlay.innerHTML = `<div class="fanfare-burst" role="presentation">
+    ${pieces}
+  </div>`;
+  overlay.hidden = false;
+  window.setTimeout(() => {
+    overlay.hidden = true;
+    overlay.innerHTML = "";
+  }, 1650);
+}
+
+function recordGuideFanfareStep(order) {
+  if (!order) return;
+  fanfareGuideProgress.push(order);
+  fanfareGuideProgress = fanfareGuideProgress.slice(-FANFARE_GUIDE_SEQUENCE.length);
+  const matched = FANFARE_GUIDE_SEQUENCE.every((value, index) => fanfareGuideProgress[index] === value);
+  if (!matched) return;
+  fanfareGuideProgress = [];
+  showFanfare();
 }
 
 async function api(path, options = {}) {
@@ -166,6 +277,7 @@ function closeModal(result) {
   const input = $("#appModalInput");
   if (result === true && modalInputMode) result = input.value;
   modal.hidden = true;
+  delete modal.dataset.variant;
   inputWrap.hidden = true;
   input.value = "";
   modalInputMode = false;
@@ -176,7 +288,7 @@ function closeModal(result) {
   modalPreviousFocus = null;
 }
 
-function showModal({ title = "확인", message = "", confirmText = "확인", cancelText = null, danger = false } = {}) {
+function showModal({ title = "확인", message = "", confirmText = "확인", cancelText = null, danger = false, variant = "" } = {}) {
   const modal = $("#appModal");
   const titleEl = $("#appModalTitle");
   const messageEl = $("#appModalMessage");
@@ -187,8 +299,11 @@ function showModal({ title = "확인", message = "", confirmText = "확인", can
   if (modalResolve) closeModal(false);
   modalPreviousFocus = document.activeElement;
   modalInputMode = false;
+  if (variant) modal.dataset.variant = variant;
+  else delete modal.dataset.variant;
   titleEl.textContent = title;
-  messageEl.textContent = message;
+  if (variant === "patch-notes") messageEl.innerHTML = renderPatchNotesMarkdown(message);
+  else messageEl.textContent = message;
   inputWrap.hidden = true;
   input.value = "";
   confirmButton.textContent = confirmText;
@@ -215,6 +330,7 @@ function showPrompt(message, options = {}) {
   if (modalResolve) closeModal(false);
   modalPreviousFocus = document.activeElement;
   modalInputMode = true;
+  delete modal.dataset.variant;
   titleEl.textContent = options.title || "입력";
   messageEl.textContent = String(message || "");
   inputLabel.textContent = options.label || "입력";
@@ -234,8 +350,15 @@ function showPrompt(message, options = {}) {
   });
 }
 
-function showAlert(message, title = "알림") {
-  return showModal({ title, message: String(message || ""), confirmText: "확인" });
+function showAlert(message, title = "알림", options = {}) {
+  return showModal({ title, message: String(message || ""), confirmText: "확인", variant: options.variant || "" });
+}
+
+async function maybeShowUpdateNotice() {
+  const notice = await api("/api/update-notice");
+  if (!notice.show) return;
+  await showAlert(PATCH_NOTES_PREVIEW, `${notice.currentVersion || "0.1.4"} 업데이트 내용`, { variant: "patch-notes" });
+  await api("/api/update-notice/read", { method: "POST", body: JSON.stringify({}) });
 }
 
 function showConfirm(message, options = {}) {
@@ -283,12 +406,38 @@ function updateSearchClearButton() {
   $("#clearSearchButton").disabled = $("#searchInput").value.length === 0;
 }
 
+let sideColumnLayoutFrame = null;
+
+function updateSideColumnLayout() {
+  sideColumnLayoutFrame = null;
+  const sideColumn = document.querySelector(".side-column");
+  if (!sideColumn) return;
+  if (window.matchMedia("(max-width: 1200px)").matches) {
+    sideColumn.style.removeProperty("--side-max-height");
+    return;
+  }
+  const top = Math.max(24, sideColumn.getBoundingClientRect().top);
+  sideColumn.style.setProperty("--side-max-height", `${Math.max(320, window.innerHeight - top - 24)}px`);
+}
+
+function queueSideColumnLayout() {
+  if (sideColumnLayoutFrame !== null) return;
+  sideColumnLayoutFrame = window.requestAnimationFrame(updateSideColumnLayout);
+}
+
+function renderSubtitle() {
+  const counts = state?.counts || {};
+  const issueTotal = Object.values(state?.issueCounts || {}).reduce((sum, count) => sum + Number(count || 0), 0);
+  const issueText = issueTotal > 0 ? `진단 ${issueTotal}건` : "문제 없음";
+  $("#subtitle").textContent = `채팅 ${counts.records || 0}개 · 프로젝트 ${counts.projects || 0}개 · 백업 ${counts.backups || 0}개 · ${issueText}`;
+}
+
 async function refresh(options = {}) {
   const loading = options.loading || { threads: true, backups: true };
   $("#subtitle").textContent = "로컬 세션 상태를 불러오는 중...";
   setLoading(loading);
   state = await api("/api/summary");
-  $("#subtitle").textContent = `${state.codexHome} · ${new Date(state.generatedAt).toLocaleString("ko-KR")} 생성`;
+  renderSubtitle();
   renderCodexHome();
   renderFilters();
   updateSearchClearButton();
@@ -296,12 +445,13 @@ async function refresh(options = {}) {
   renderGroups();
   renderBackups();
   renderIcons();
+  queueSideColumnLayout();
 }
 
 async function reloadSections({ threads = false, backups = false, codexHome = false, loading = true } = {}) {
   if (loading) setLoading({ threads, backups });
   state = await api("/api/summary");
-  $("#subtitle").textContent = `${state.codexHome} · ${new Date(state.generatedAt).toLocaleString("ko-KR")} 생성`;
+  renderSubtitle();
   if (codexHome) renderCodexHome();
   if (threads) {
     renderFilters();
@@ -311,6 +461,7 @@ async function reloadSections({ threads = false, backups = false, codexHome = fa
   }
   if (backups) renderBackups();
   renderIcons();
+  queueSideColumnLayout();
 }
 
 function renderCodexHome() {
@@ -754,7 +905,7 @@ async function reloadProjectSubset(projects, options = {}) {
     return;
   }
   state = await api("/api/summary");
-  $("#subtitle").textContent = `${state.codexHome} · ${new Date(state.generatedAt).toLocaleString("ko-KR")} 생성`;
+  renderSubtitle();
   if (options.codexHome) renderCodexHome();
   renderFilters();
   updateSearchClearButton();
@@ -813,7 +964,7 @@ function renderRecord(record, options = {}) {
   const sizeLabel = options.isParent && options.childCount > 0 ? `${formatBytes(ownSize)} · agent 포함 ${formatBytes(totalSize)}` : formatBytes(ownSize);
   const sizeAdvice = chatSizeAdvice(totalSize);
   const sizeAdvicePill = sizeAdvice
-    ? `<span class="pill size-advice ${escapeHtml(sizeAdvice.level)}" title="${escapeHtml(sizeAdvice.detail)}">${escapeHtml(sizeAdvice.label)}</span>`
+    ? `<span class="pill size-advice ${escapeHtml(sizeAdvice.level)}" data-tooltip="${escapeHtml(sizeAdvice.detail)}">${escapeHtml(sizeAdvice.label)}</span>`
     : "";
   const sizeAdviceDetail = sizeAdvice
     ? `<span class="size-advice-inline ${escapeHtml(sizeAdvice.level)}">${escapeHtml(sizeAdvice.label)}</span>`
@@ -1191,7 +1342,7 @@ async function repairProjectPath(from) {
   expandedProjects.add(projectKey(to));
   if ($("#projectFilter").value === from) $("#projectFilter").value = to;
   state = await api("/api/summary");
-  $("#subtitle").textContent = `${state.codexHome} · ${new Date(state.generatedAt).toLocaleString("ko-KR")} 생성`;
+  renderSubtitle();
   normalizeSelectedThreads();
   renderCodexHome();
   renderFilters();
@@ -1229,7 +1380,7 @@ async function moveProjectPath(project) {
   expandedProjects.add(projectKey(to));
   if ($("#projectFilter").value === project) $("#projectFilter").value = to;
   state = await api("/api/summary");
-  $("#subtitle").textContent = `${state.codexHome} · ${new Date(state.generatedAt).toLocaleString("ko-KR")} 생성`;
+  renderSubtitle();
   normalizeSelectedThreads();
   renderCodexHome();
   renderFilters();
@@ -1265,7 +1416,7 @@ async function renameProjectPath(project) {
   expandedProjects.add(projectKey(to));
   if ($("#projectFilter").value === project) $("#projectFilter").value = to;
   state = await api("/api/summary");
-  $("#subtitle").textContent = `${state.codexHome} · ${new Date(state.generatedAt).toLocaleString("ko-KR")} 생성`;
+  renderSubtitle();
   normalizeSelectedThreads();
   renderCodexHome();
   renderFilters();
@@ -1302,7 +1453,7 @@ async function repairProjectChats(project) {
     body: JSON.stringify({ project }),
   });
   state = await api("/api/summary");
-  $("#subtitle").textContent = `${state.codexHome} · ${new Date(state.generatedAt).toLocaleString("ko-KR")} 생성`;
+  renderSubtitle();
   normalizeSelectedThreads();
   renderCodexHome();
   renderFilters();
@@ -1327,6 +1478,22 @@ function restoreAutoExpansions() {
   for (const id of autoExpandedGroups) expandedGroups.delete(id);
   autoExpandedProjects.clear();
   autoExpandedGroups.clear();
+}
+
+function hasActiveResultFilter() {
+  return Boolean($("#searchInput").value.trim());
+}
+
+function syncFilteredResultExpansions() {
+  restoreAutoExpansions();
+  if (!hasActiveResultFilter()) return;
+  for (const group of filteredGroups().slice(0, 300)) {
+    const projectId = projectKey(groupProject(group));
+    if (!expandedProjects.has(projectId)) {
+      expandedProjects.add(projectId);
+      autoExpandedProjects.add(projectId);
+    }
+  }
 }
 
 function filterThread(threadId) {
@@ -1609,6 +1776,8 @@ $("#helpPanel").addEventListener("click", (event) => {
   button.setAttribute("aria-expanded", String(!expanded));
   card?.classList.toggle("is-open", !expanded);
   if (body) body.hidden = expanded;
+  if (!expanded) recordGuideFanfareStep(card.dataset.guideOrder);
+  queueSideColumnLayout();
 });
 $("#helpPanel").addEventListener("pointermove", (event) => {
   const card = event.target.closest(".guide-card");
@@ -1619,18 +1788,22 @@ $("#helpPanel").addEventListener("pointermove", (event) => {
 });
 $("#searchInput").addEventListener("input", () => {
   updateSearchClearButton();
-  if ($("#searchInput").value.length === 0) restoreAutoExpansions();
+  syncFilteredResultExpansions();
   renderGroups();
 });
 $("#clearSearchButton").addEventListener("click", () => {
   $("#searchInput").value = "";
   updateSearchClearButton();
-  restoreAutoExpansions();
+  syncFilteredResultExpansions();
   renderGroups();
   $("#searchInput").focus();
 });
-$("#issueFilter").addEventListener("change", renderGroups);
-$("#projectFilter").addEventListener("change", renderGroups);
+$("#issueFilter").addEventListener("change", () => {
+  renderGroups();
+});
+$("#projectFilter").addEventListener("change", () => {
+  renderGroups();
+});
 $("#clearSelectionButton").addEventListener("click", clearSelectedThreads);
 $("#deleteSelectedButton").addEventListener("click", () => {
   deleteSelectedThreads().catch(showError);
@@ -1640,20 +1813,22 @@ $("#threadGroups").addEventListener("change", (event) => {
   if (!checkbox) return;
   setThreadSelected(checkbox.dataset.selectThread, checkbox.checked);
 });
-$("#threadGroups").addEventListener("mouseover", (event) => {
-  const host = event.target.closest("[data-disabled-tooltip]");
+const globalTooltipSelector = "[data-disabled-tooltip], [data-tooltip]";
+
+document.addEventListener("mouseover", (event) => {
+  const host = event.target.closest(globalTooltipSelector);
   if (host) showGlobalTooltip(host);
 });
-$("#threadGroups").addEventListener("mouseout", (event) => {
-  const host = event.target.closest("[data-disabled-tooltip]");
+document.addEventListener("mouseout", (event) => {
+  const host = event.target.closest(globalTooltipSelector);
   if (host && !host.contains(event.relatedTarget)) hideGlobalTooltip(host);
 });
-$("#threadGroups").addEventListener("focusin", (event) => {
-  const host = event.target.closest("[data-disabled-tooltip]");
+document.addEventListener("focusin", (event) => {
+  const host = event.target.closest(globalTooltipSelector);
   if (host) showGlobalTooltip(host);
 });
-$("#threadGroups").addEventListener("focusout", (event) => {
-  const host = event.target.closest("[data-disabled-tooltip]");
+document.addEventListener("focusout", (event) => {
+  const host = event.target.closest(globalTooltipSelector);
   if (host) hideGlobalTooltip(host);
 });
 $("#threadGroups").addEventListener("click", (event) => {
@@ -1797,15 +1972,23 @@ document.addEventListener("keydown", (event) => {
     return;
   }
 });
-window.addEventListener("scroll", () => hideGlobalTooltip(), true);
-window.addEventListener("resize", () => hideGlobalTooltip());
+window.addEventListener("scroll", () => {
+  hideGlobalTooltip();
+  queueSideColumnLayout();
+}, true);
+window.addEventListener("resize", () => {
+  hideGlobalTooltip();
+  queueSideColumnLayout();
+});
 
 startHeartbeat();
 startCodexProcessPolling();
 
-refresh().catch((error) => {
-  $("#subtitle").textContent = error.message;
-});
+refresh()
+  .then(() => maybeShowUpdateNotice())
+  .catch((error) => {
+    $("#subtitle").textContent = error.message;
+  });
 checkUpdateStatus({ silent: true }).catch(() => {
   renderUpdateStatus({ error: "업데이트 상태를 확인하지 못했습니다." });
 });
