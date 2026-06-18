@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node server.mjs",
     "dev": "node server.mjs",
-    "package:release": "node scripts/package-release.mjs"
+    "package:release": "node scripts/package-release.mjs",
+    "release:check": "node scripts/check-release.mjs",
+    "test:regression": "node scripts/test-regressions.mjs"
   },
   "engines": {
     "node": ">=20"

@@ -46,7 +46,9 @@ if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/
     echo "실행 중인 위치: $RUNNING_DIR"
     echo "현재 실행한 위치: $PROJECT_DIR"
     if [ "$RUNNING_DIR" != "$PROJECT_DIR" ]; then
-      echo "다른 위치의 서버가 이미 실행 중입니다. 해당 서버를 종료한 뒤 다시 실행하면 현재 위치에서 시작됩니다."
+      echo "주의: 다른 위치의 서버가 이미 실행 중입니다."
+      echo "현재 package.json을 수정해도 열린 화면은 기존 서버 버전을 기준으로 동작합니다."
+      echo "해당 서버를 종료한 뒤 다시 실행하면 현재 위치에서 시작됩니다."
     fi
   fi
   open "$URL" >/dev/null 2>&1 || true

@@ -7,7 +7,7 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const dist = join(root, "dist");
 const packageRoot = join(dist, "codex-session-manager");
 const zipPath = join(dist, "codex-session-manager.zip");
-const include = ["README.md", "package.json", "package-lock.json", "server.mjs", "start.command", "stop.command", "public", "docs"];
+const include = ["README.md", "package.json", "package-lock.json", "server.mjs", "start.command", "stop.command", "public", "docs", "scripts", "src"];
 
 function run(command, args, options = {}) {
   return new Promise((resolve, reject) => {
