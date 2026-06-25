@@ -514,8 +514,6 @@ const {
 } = backupService;
 
 const chatTransferService = createChatTransferService({
-  backupFileIfExists,
-  backupStateFiles,
   buildSummary,
   ensureCodexProjectConfig,
   exists,

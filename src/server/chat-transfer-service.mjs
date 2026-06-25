@@ -11,8 +11,6 @@ const gunzipAsync = promisify(gunzip);
 
 export function createChatTransferService(deps) {
   const {
-    backupFileIfExists,
-    backupStateFiles,
     buildSummary,
     ensureCodexProjectConfig,
     exists,
@@ -109,10 +107,6 @@ export function createChatTransferService(deps) {
     try {
       const manifest = await readTransferManifest(importDir);
       const pathMappings = cleanPathMappings(payload.pathMappings);
-      const safetyBackupDir = join(paths().BACKUPS_ROOT, `codex_session_manager_before_transfer_import_${timestampSlug()}`);
-      await mkdir(safetyBackupDir, { recursive: true });
-      await backupStateFiles(safetyBackupDir);
-      await backupFileIfExists(paths().SESSION_INDEX, join(safetyBackupDir, "session_index.jsonl"));
 
       const filePathMap = new Map();
       const copiedFiles = [];
@@ -123,7 +117,6 @@ export function createChatTransferService(deps) {
         if (!(await exists(source))) continue;
         const dest = joinPortable(paths().CODEX_HOME, relativePath);
         filePathMap.set(String(file.originalPath || ""), dest);
-        await backupFileIfExists(dest, joinPortable(safetyBackupDir, relative(paths().CODEX_HOME, dest)));
         await mkdir(dirname(dest), { recursive: true });
         const textContent = await readFile(source, "utf8");
         await writeFile(dest, rewriteJsonText(textContent, buildReplacements(manifest, pathMappings, filePathMap)), "utf8");
@@ -143,12 +136,7 @@ export function createChatTransferService(deps) {
         });
       }
 
-      await writeFile(
-        join(safetyBackupDir, "manifest.json"),
-        `${JSON.stringify({ createdAt: new Date().toISOString(), importSource: importDir, copiedFiles, importedIndexRows, importedDb }, null, 2)}\n`,
-        "utf8",
-      );
-      return { imported: true, path: source.originalPath, safetyBackupDir, copiedFiles, importedIndexRows, importedDb, ensuredProjects };
+      return { imported: true, path: source.originalPath, copiedFiles, importedIndexRows, importedDb, ensuredProjects };
     } finally {
       await source.cleanup();
     }

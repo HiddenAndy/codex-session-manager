@@ -168,22 +168,10 @@ async function importChatBackup() {
     body: JSON.stringify({ path: selected.path }),
   });
   const projects = inspected.manifest?.projects || [];
-  const pathMappings = {};
-  for (const project of projects) {
-    const mapped = await showPrompt(
-      `가져올 채팅의 원본 프로젝트 경로입니다.\n\n${project}\n\n이 컴퓨터의 프로젝트 폴더 경로를 입력하세요. Windows라면 C:\\Users\\... 형식도 가능합니다.`,
-      {
-        title: "프로젝트 경로 매핑",
-        label: "현재 컴퓨터 경로",
-        value: project,
-        confirmText: "적용",
-      },
-    );
-    if (mapped === false) return;
-    pathMappings[project] = mapped || project;
-  }
+  const pathMappings = await resolveImportProjectMappings(projects);
+  if (pathMappings === null) return;
   const ok = await showConfirm(
-    `채팅 내보내기 파일을 가져올까요?\n\n채팅 ${inspected.manifest.counts?.threads || 0}개 · 파일 ${inspected.manifest.counts?.files || 0}개\n가져오기 전 현재 상태 백업이 생성됩니다.`,
+    `채팅 내보내기 파일을 가져올까요?\n\n채팅 ${inspected.manifest.counts?.threads || 0}개 · 파일 ${inspected.manifest.counts?.files || 0}개`,
     { confirmText: "가져오기" },
   );
   if (!ok) return;
@@ -196,9 +184,62 @@ async function importChatBackup() {
   threadSelectionMode = false;
   await reloadSections({ threads: true, backups: true, codexHome: true, loading: false });
   await showAlert(
-    `가져오기가 완료되었습니다.\n\n세션 파일 ${result.copiedFiles?.length || 0}개\n안전 백업: ${result.safetyBackupDir}`,
+    `가져오기가 완료되었습니다.\n\n세션 파일 ${result.copiedFiles?.length || 0}개`,
     "채팅 가져오기",
   );
+}
+
+async function resolveImportProjectMappings(projects) {
+  const mappings = {};
+  const currentProjects = currentProjectPaths();
+  for (const project of projects) {
+    const target = inferImportProjectPath(project, currentProjects);
+    if (target) {
+      mappings[project] = target;
+      continue;
+    }
+    const selected = await api("/api/select-path", {
+      method: "POST",
+      body: JSON.stringify({
+        kind: "directory",
+        currentPath: currentProjects[0] || state?.codexHome || "",
+        prompt: "가져올 채팅의 프로젝트 폴더를 선택하세요.",
+      }),
+    });
+    if (selected.canceled) return null;
+    mappings[project] = selected.path;
+  }
+  return mappings;
+}
+
+function currentProjectPaths() {
+  const paths = [];
+  const add = (project) => {
+    const value = String(project || "").trim();
+    if (!value || value === GENERAL_CHAT_LABEL || value === "(프로젝트 없음)") return;
+    if (!paths.includes(value)) paths.push(value);
+  };
+  for (const group of state?.groups || []) {
+    add(group.project);
+    add(group.parent?.project);
+    for (const child of group.children || []) add(child.project);
+  }
+  for (const record of state?.records || []) add(record.project);
+  return paths;
+}
+
+function inferImportProjectPath(sourceProject, currentProjects) {
+  const source = String(sourceProject || "").trim();
+  if (!source) return "";
+  if (currentProjects.includes(source)) return source;
+  const sourceName = pathBaseName(source);
+  if (!sourceName) return "";
+  const candidates = currentProjects.filter((project) => pathBaseName(project) === sourceName);
+  return candidates.length === 1 ? candidates[0] : "";
+}
+
+function pathBaseName(path) {
+  return String(path || "").split(/[\\/]+/).filter(Boolean).at(-1) || "";
 }
 
 function setLoading({ threads = false, backups = false } = {}) {
