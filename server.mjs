@@ -11,7 +11,7 @@ import {
 } from "node:fs/promises";
 import { existsSync, rmSync, statSync } from "node:fs";
 import { spawn } from "node:child_process";
-import { homedir } from "node:os";
+import { homedir, platform } from "node:os";
 import {
   basename,
   dirname,
@@ -22,6 +22,7 @@ import {
 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertCodexClosed, getCodexProcessStatus } from "./src/server/codex-process.mjs";
+import { createChatTransferService } from "./src/server/chat-transfer-service.mjs";
 import { createCodexGlobalStateService } from "./src/server/codex-global-state.mjs";
 import { createCodexProjectConfigService } from "./src/server/codex-project-config.mjs";
 import { createBackupInspector } from "./src/server/backup-inspector.mjs";
@@ -158,6 +159,7 @@ const {
 
 const backupInspector = createBackupInspector({
   getPaths: () => ({
+    ARCHIVED_SESSIONS_ROOT,
     BACKUPS_ROOT,
     CODEX_CONFIG_TOML,
     CODEX_HOME,
@@ -451,16 +453,24 @@ const {
   repairProjectRegistration,
 } = projectService;
 
-function sqlString(value) {
-  return `'${String(value).replaceAll("'", "''")}'`;
-}
-
 function isSafeBackupDeleteTarget(path, isDirectoryHint = null) {
   const resolved = resolve(path);
   if (isInside(resolved, BACKUPS_ROOT) && relative(resolve(BACKUPS_ROOT), resolved) !== "") return true;
   if (isInside(resolved, SESSIONS_ROOT) && basename(resolved).endsWith("_bak.jsonl")) return true;
   if (isDirectoryHint === false && basename(resolved).endsWith("_bak.jsonl")) return true;
   return false;
+}
+
+async function openFolder(payload) {
+  const target = resolve(expandHomePath(payload.path || ""));
+  const st = await stat(target).catch(() => null);
+  if (!st?.isDirectory()) throw new Error("folder not found");
+  const allowedRoots = [BACKUPS_ROOT, CODEX_HOME, __dirname].map((path) => resolve(path));
+  if (!allowedRoots.some((root) => isInside(target, root))) throw new Error("refusing to open folder outside managed roots");
+  const command = platform() === "darwin" ? "open" : platform() === "win32" ? "explorer.exe" : "xdg-open";
+  const child = spawn(command, [target], { detached: true, stdio: "ignore" });
+  child.unref();
+  return { opened: true, path: target };
 }
 
 const backupService = createBackupService({
@@ -471,6 +481,7 @@ const backupService = createBackupService({
   exists,
   fixStoredTitles,
   getPaths: () => ({
+    ARCHIVED_SESSIONS_ROOT,
     BACKUPS_ROOT,
     CODEX_CONFIG_TOML,
     CODEX_GLOBAL_STATE,
@@ -501,6 +512,30 @@ const {
   removeSessionFilesAbsentFromBackupSnapshot,
   restoreBackup,
 } = backupService;
+
+const chatTransferService = createChatTransferService({
+  backupFileIfExists,
+  backupStateFiles,
+  buildSummary,
+  ensureCodexProjectConfig,
+  exists,
+  getPaths: () => ({
+    ARCHIVED_SESSIONS_ROOT,
+    BACKUPS_ROOT,
+    CODEX_CONFIG_TOML,
+    CODEX_GLOBAL_STATE,
+    CODEX_GLOBAL_STATE_BAK,
+    CODEX_HOME,
+    SESSION_INDEX,
+    SESSIONS_ROOT,
+    STATE_DB,
+  }),
+  loadIndex,
+  replaceCodexProjectGlobalState,
+  sqlite,
+  timestampSlug,
+});
+const { exportChatBackup, importChatBackup, inspectChatBackup } = chatTransferService;
 
 const deleteService = createDeleteService({
   assertCodexClosed,
@@ -543,6 +578,7 @@ const handleRequest = createRequestHandler({
   getConfig,
   saveConfig,
   selectPath: pathPicker.selectPath,
+  openFolder,
   buildSummary,
   getCodexProcessStatus,
   updateService,
@@ -560,6 +596,9 @@ const handleRequest = createRequestHandler({
   restoreBackup,
   deleteAllBackups,
   deleteUnknownOriginalBackups,
+  exportChatBackup,
+  importChatBackup,
+  inspectChatBackup,
   deleteThread,
   deleteThreads,
   removeProject,

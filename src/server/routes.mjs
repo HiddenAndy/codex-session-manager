@@ -5,6 +5,7 @@ export function createRequestHandler({
   getConfig,
   saveConfig,
   selectPath,
+  openFolder,
   buildSummary,
   getCodexProcessStatus,
   updateService,
@@ -22,6 +23,9 @@ export function createRequestHandler({
   restoreBackup,
   deleteAllBackups,
   deleteUnknownOriginalBackups,
+  exportChatBackup,
+  inspectChatBackup,
+  importChatBackup,
   deleteThread,
   deleteThreads,
   removeProject,
@@ -39,6 +43,10 @@ export function createRequestHandler({
       }
       if (req.method === "POST" && url.pathname === "/api/select-path") {
         json(res, 200, await selectPath(await readRequestBody(req)));
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/open-folder") {
+        json(res, 200, await openFolder(await readRequestBody(req)));
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/summary") {
@@ -130,6 +138,18 @@ export function createRequestHandler({
       }
       if (req.method === "POST" && url.pathname === "/api/delete-unknown-original-backups") {
         json(res, 200, await deleteUnknownOriginalBackups());
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/export-chat-backup") {
+        json(res, 200, await exportChatBackup(await readRequestBody(req)));
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/inspect-chat-backup") {
+        json(res, 200, await inspectChatBackup(await readRequestBody(req)));
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/import-chat-backup") {
+        json(res, 200, await importChatBackup(await readRequestBody(req)));
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/delete-thread") {

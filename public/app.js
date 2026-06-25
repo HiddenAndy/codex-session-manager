@@ -22,11 +22,12 @@ const autoExpandedGroups = new Set();
 const autoExpandedProjects = new Set();
 const selectedThreads = new Set();
 const selectedBackups = new Set();
+let threadSelectionMode = false;
 const GENERAL_CHAT_LABEL = "일반 채팅";
 const $ = (selector) => document.querySelector(selector);
 const { hideGlobalTooltip, showGlobalTooltip } = createTooltipController();
 const recordGuideFanfareStep = createGuideFanfareRecorder({ $ });
-const { closeModal, showAlert, showConfirm, showError, showPrompt } = createModalController({ $, renderPatchNotesMarkdown });
+const { closeModal, runModalSecondaryAction, showAlert, showConfirm, showError, showPrompt } = createModalController({ $, renderPatchNotesMarkdown });
 const { queueSideColumnLayout, updateSideColumnLayout } = createSideColumnLayout();
 const {
   checkUpdateStatus,
@@ -67,6 +68,7 @@ const threadRenderer = createThreadRenderer({
   expandedProjects,
   selectedThreads,
   GENERAL_CHAT_LABEL,
+  getThreadSelectionMode: () => threadSelectionMode,
   codexStatusController,
   chatSizeAdvice,
   escapeHtml,
@@ -88,8 +90,6 @@ const {
   projectSetForThreadIds,
   projectSetForBackup,
   renderGroups,
-  renderProjectSections,
-  renderProjectThreadList,
   setProjectSectionLoading,
   toggleProjectSection,
   updateProjectSections,
@@ -99,13 +99,16 @@ const {
   clearSelectedThreads,
   deleteSelectedThreads,
   normalizeSelectedThreads,
+  setProjectSelected,
   setThreadSelected,
   updateSelectionBar,
 } = createThreadSelection({
   $,
   selectedThreads,
   getState: () => state,
+  getThreadSelectionMode: () => threadSelectionMode,
   groupRecords,
+  groupProject,
   renderGroups,
   showConfirm,
   api,
@@ -113,6 +116,90 @@ const {
   setProjectSectionLoading,
   reloadProjectSubset,
 });
+
+function setThreadSelectionMode(enabled) {
+  threadSelectionMode = Boolean(enabled);
+  $("#chatBackupModeButton").classList.toggle("active", threadSelectionMode);
+  $("#chatBackupModeButton").innerHTML = threadSelectionMode
+    ? `<span class="button-icon" data-lucide="x" aria-hidden="true"></span>선택 닫기`
+    : `<span class="button-icon" data-lucide="archive" aria-hidden="true"></span>채팅 내보내기`;
+  if (!threadSelectionMode) selectedThreads.clear();
+  renderGroups();
+  renderIcons($("#chatBackupModeButton"));
+}
+
+function toggleThreadSelectionMode() {
+  setThreadSelectionMode(!threadSelectionMode);
+}
+
+async function exportSelectedChats() {
+  const ids = [...selectedThreads];
+  if (ids.length === 0) return;
+  const ok = await showConfirm(
+    `선택한 채팅 ${ids.length}개를 내보낼까요?\n\n세션 파일, 세션 인덱스, DB 스레드 참조가 함께 내보내집니다.`,
+    { confirmText: "내보내기" },
+  );
+  if (!ok) return;
+  setLoading({ backups: true });
+  const result = await api("/api/export-chat-backup", {
+    method: "POST",
+    body: JSON.stringify({ ids, includeChildren: true }),
+  });
+  await reloadSections({ backups: true, loading: false });
+  const exportPath = result.archivePath || result.exportPath || result.exportDir;
+  await showAlert(`압축 파일로 내보내기가 완료되었습니다.\n\n${exportPath}`, "채팅 내보내기", {
+    secondaryText: "폴더 열기",
+    onSecondary: () =>
+      api("/api/open-folder", {
+        method: "POST",
+        body: JSON.stringify({ path: result.openPath || exportPath }),
+      }),
+  });
+}
+
+async function importChatBackup() {
+  const selected = await api("/api/select-path", {
+    method: "POST",
+    body: JSON.stringify({ kind: "file", currentPath: state?.backupsRoot || "", prompt: "채팅 내보내기 .tgz 파일을 선택하세요.", filter: "chat-backup" }),
+  });
+  if (selected.canceled) return;
+  const inspected = await api("/api/inspect-chat-backup", {
+    method: "POST",
+    body: JSON.stringify({ path: selected.path }),
+  });
+  const projects = inspected.manifest?.projects || [];
+  const pathMappings = {};
+  for (const project of projects) {
+    const mapped = await showPrompt(
+      `가져올 채팅의 원본 프로젝트 경로입니다.\n\n${project}\n\n이 컴퓨터의 프로젝트 폴더 경로를 입력하세요. Windows라면 C:\\Users\\... 형식도 가능합니다.`,
+      {
+        title: "프로젝트 경로 매핑",
+        label: "현재 컴퓨터 경로",
+        value: project,
+        confirmText: "적용",
+      },
+    );
+    if (mapped === false) return;
+    pathMappings[project] = mapped || project;
+  }
+  const ok = await showConfirm(
+    `채팅 내보내기 파일을 가져올까요?\n\n채팅 ${inspected.manifest.counts?.threads || 0}개 · 파일 ${inspected.manifest.counts?.files || 0}개\n가져오기 전 현재 상태 백업이 생성됩니다.`,
+    { confirmText: "가져오기" },
+  );
+  if (!ok) return;
+  setLoading({ threads: true, backups: true });
+  const result = await api("/api/import-chat-backup", {
+    method: "POST",
+    body: JSON.stringify({ path: selected.path, pathMappings }),
+  });
+  selectedThreads.clear();
+  threadSelectionMode = false;
+  await reloadSections({ threads: true, backups: true, codexHome: true, loading: false });
+  await showAlert(
+    `가져오기가 완료되었습니다.\n\n세션 파일 ${result.copiedFiles?.length || 0}개\n안전 백업: ${result.safetyBackupDir}`,
+    "채팅 가져오기",
+  );
+}
 
 function setLoading({ threads = false, backups = false } = {}) {
   setLoadingTargets($, { threads, backups });
@@ -381,6 +468,7 @@ setupAppEvents({
   choosePath,
   clearSelectedThreads,
   closeModal,
+  runModalSecondaryAction,
   codexStatusController,
   deleteAllBackups,
   deleteBackup,
@@ -389,9 +477,11 @@ setupAppEvents({
   deleteSelectedThreads,
   deleteThread,
   deleteUnknownOriginalBackups,
+  exportSelectedChats,
   expandedGroups,
   filterThread,
   hideGlobalTooltip,
+  importChatBackup,
   installAvailableUpdate,
   maybeShowUpdateNotice,
   moveProjectPath,
@@ -411,6 +501,7 @@ setupAppEvents({
   runRepair,
   saveCodexHome,
   selectedBackups,
+  setProjectSelected,
   setThreadSelected,
   showError,
   showGlobalTooltip,
@@ -419,6 +510,7 @@ setupAppEvents({
   startHeartbeat,
   syncFilteredResultExpansions,
   toggleProjectSection,
+  toggleThreadSelectionMode,
   updateBackupSelectionButton,
   updateSearchClearButton,
 });

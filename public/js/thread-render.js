@@ -8,6 +8,7 @@ export function createThreadRenderer(deps) {
     expandedProjects,
     selectedThreads,
     GENERAL_CHAT_LABEL,
+    getThreadSelectionMode,
     codexStatusController,
     chatSizeAdvice,
     escapeHtml,
@@ -103,6 +104,7 @@ function renderGroups() {
   const groups = filteredGroups();
   $("#threadGroups").innerHTML = renderProjectSections(groups.slice(0, 300));
   updateSelectionBar();
+  syncProjectSelectIndeterminate();
   renderIcons($("#threadGroups"));
 }
 
@@ -146,6 +148,7 @@ function renderProjectSection(project, projectGroups) {
   const isNoProject = project === "(프로젝트 없음)";
   const isGeneralChat = project === GENERAL_CHAT_LABEL;
   const deleteIds = projectGroups.map((group) => group.parent?.id).filter(Boolean);
+  const projectSelect = renderProjectSelect(project, projectGroups);
   const statusTags = renderProjectStatusTags(projectGroups, { generalChat: isGeneralChat });
   const hasMissingProjectPath = projectGroups.some((group) =>
     groupRecords(group).some((record) => record.issues.includes("missing-project-path")),
@@ -168,6 +171,7 @@ function renderProjectSection(project, projectGroups) {
   return `<section class="project-section" data-project-section="${escapeHtml(projectId)}">
     <div class="project-header" data-project-toggle="${escapeHtml(projectId)}" role="button" tabindex="0" aria-expanded="${isExpanded}">
       <span class="project-toggle-indicator" aria-hidden="true"></span>
+      ${projectSelect}
       <div class="project-summary">
         <h3>${escapeHtml(project)}</h3>
         <div class="project-meta">
@@ -212,6 +216,28 @@ function projectKey(project) {
   return `project:${project}`;
 }
 
+function projectSelectableIds(projectGroups) {
+  return projectGroups.flatMap(groupRecords).map((record) => record.id);
+}
+
+function renderProjectSelect(project, projectGroups) {
+  if (!getThreadSelectionMode?.()) return "";
+  const ids = projectSelectableIds(projectGroups);
+  if (ids.length === 0) return "";
+  const selectedCount = ids.filter((id) => selectedThreads.has(id)).length;
+  const checked = selectedCount === ids.length;
+  const indeterminate = selectedCount > 0 && selectedCount < ids.length;
+  return `<label class="project-select" title="프로젝트 채팅 선택" aria-label="프로젝트 채팅 선택">
+    <input
+      type="checkbox"
+      data-select-project="${escapeHtml(project)}"
+      data-select-project-ids="${escapeHtml(ids.join(","))}"
+      ${checked ? "checked" : ""}
+      data-indeterminate="${indeterminate ? "true" : "false"}"
+    />
+  </label>`;
+}
+
 function projectFromKey(projectId) {
   return String(projectId || "").startsWith("project:") ? projectId.slice("project:".length) : "";
 }
@@ -233,6 +259,7 @@ function toggleProjectSection(projectId) {
   if (!section.querySelector(".project-thread-list")) {
     const projectGroups = buildProjectMap(filteredGroups().slice(0, 300)).get(projectFromKey(projectId)) || [];
     section.insertAdjacentHTML("beforeend", renderProjectThreadList(projectGroups));
+    syncProjectSelectIndeterminate();
   }
 }
 
@@ -256,6 +283,7 @@ function updateProjectSections(from, to) {
   if (groups.length === 0) {
     $("#threadGroups").innerHTML = renderProjectSections(groups);
     updateSelectionBar();
+    syncProjectSelectIndeterminate();
     renderIcons($("#threadGroups"));
     return;
   }
@@ -271,6 +299,7 @@ function updateProjectSections(from, to) {
     else if (fromSection) fromSection.remove();
     else if (fromGroups) renderGroups();
     updateSelectionBar();
+    syncProjectSelectIndeterminate();
     renderIcons($("#threadGroups"));
     return;
   }
@@ -288,6 +317,7 @@ function updateProjectSections(from, to) {
 
   if (!fromSection && !toSection && toGroups) renderGroups();
   updateSelectionBar();
+  syncProjectSelectIndeterminate();
   renderIcons($("#threadGroups"));
 }
 
@@ -297,6 +327,7 @@ function updateProjectSubset(projects) {
   if (visibleGroups.length === 0) {
     $("#threadGroups").innerHTML = renderProjectSections(visibleGroups);
     updateSelectionBar();
+    syncProjectSelectIndeterminate();
     renderIcons($("#threadGroups"));
     return;
   }
@@ -309,7 +340,14 @@ function updateProjectSubset(projects) {
     else if (section) section.remove();
   }
   updateSelectionBar();
+  syncProjectSelectIndeterminate();
   renderIcons($("#threadGroups"));
+}
+
+function syncProjectSelectIndeterminate() {
+  document.querySelectorAll("[data-select-project]").forEach((input) => {
+    input.indeterminate = input.dataset.indeterminate === "true";
+  });
 }
 
 function projectSetForThreadIds(ids) {
@@ -441,6 +479,7 @@ function renderRecord(record, options = {}) {
 }
 
 function renderThreadSelect(record, options = {}) {
+  if (!getThreadSelectionMode?.()) return "";
   const childIds = (options.children || []).map((child) => child.id);
   const label = record.role === "agent" ? "Agent 선택" : "채팅 선택";
   return `<label class="thread-select" title="${label}" aria-label="${label}">

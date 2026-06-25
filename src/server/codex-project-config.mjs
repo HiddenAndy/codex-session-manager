@@ -9,6 +9,15 @@ function unescapeTomlProjectName(value) {
   return String(value || "").replace(/\\(["\\])/g, "$1");
 }
 
+function isAbsolutePathLike(value) {
+  return (
+    String(value || "").startsWith("/") ||
+    /^[a-zA-Z]:[\\/]/.test(String(value || "")) ||
+    /^\\\\/.test(String(value || "")) ||
+    /^[\\/][a-zA-Z][\\/]/.test(String(value || ""))
+  );
+}
+
 export function createCodexProjectConfigService({ getConfigToml, normalizeAbsolutePath, pathMatchVariants }) {
   async function loadConfigProjects() {
     const configToml = getConfigToml();
@@ -19,7 +28,7 @@ export function createCodexProjectConfigService({ getConfigToml, normalizeAbsolu
     let match;
     while ((match = re.exec(textContent)) !== null) {
       const project = normalizeAbsolutePath(unescapeTomlProjectName(match[1]));
-      if (project.startsWith("/")) projects.push(project);
+      if (isAbsolutePathLike(project)) projects.push(project);
     }
     return [...new Set(projects)];
   }

@@ -14,8 +14,10 @@ export function setupAppEvents(deps) {
     deleteThread,
     deleteUnknownOriginalBackups,
     expandedGroups,
+    exportSelectedChats,
     filterThread,
     hideGlobalTooltip,
+    importChatBackup,
     installAvailableUpdate,
     maybeShowUpdateNotice,
     moveProjectPath,
@@ -32,10 +34,13 @@ export function setupAppEvents(deps) {
     repairProjectRegistration,
     repairThreadChat,
     restoreBackup,
+    runModalSecondaryAction,
     runRepair,
     saveCodexHome,
     selectedBackups,
+    setProjectSelected,
     setThreadSelected,
+    toggleThreadSelectionMode,
     showError,
     showGlobalTooltip,
     showPatchNotes,
@@ -112,11 +117,25 @@ export function setupAppEvents(deps) {
   $("#projectFilter").addEventListener("change", () => {
     renderGroups();
   });
+  $("#chatBackupModeButton").addEventListener("click", () => {
+    toggleThreadSelectionMode();
+  });
+  $("#importChatBackupButton").addEventListener("click", () => {
+    importChatBackup().catch(showError);
+  });
   $("#clearSelectionButton").addEventListener("click", clearSelectedThreads);
+  $("#exportSelectedChatsButton").addEventListener("click", () => {
+    exportSelectedChats().catch(showError);
+  });
   $("#deleteSelectedButton").addEventListener("click", () => {
     deleteSelectedThreads().catch(showError);
   });
   $("#threadGroups").addEventListener("change", (event) => {
+    const projectCheckbox = event.target.closest("[data-select-project]");
+    if (projectCheckbox) {
+      setProjectSelected(projectCheckbox.dataset.selectProject, projectCheckbox.checked);
+      return;
+    }
     const checkbox = event.target.closest("[data-select-thread]");
     if (!checkbox) return;
     setThreadSelected(checkbox.dataset.selectThread, checkbox.checked);
@@ -141,6 +160,10 @@ export function setupAppEvents(deps) {
   });
 
   $("#threadGroups").addEventListener("click", (event) => {
+    if (event.target.closest("[data-select-project]")) {
+      event.stopPropagation();
+      return;
+    }
     if (event.target.closest("[data-select-thread]")) {
       event.stopPropagation();
       return;
@@ -265,6 +288,9 @@ export function setupAppEvents(deps) {
 
   $("#appModalConfirm").addEventListener("click", () => closeModal(true));
   $("#appModalCancel").addEventListener("click", () => closeModal(false));
+  $("#appModalSecondary").addEventListener("click", () => {
+    runModalSecondaryAction().catch(showError);
+  });
   $("#appModalInput").addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
     event.preventDefault();

@@ -71,7 +71,16 @@ function globalStateProjectCandidates(state) {
     if (!projectlessThreadIds.has(threadId)) values.add(value);
   }
   for (const key of Object.keys(state["electron-workspace-root-labels"] || {})) values.add(key);
-  return [...values].filter((value) => typeof value === "string" && value.startsWith("/"));
+  return [...values].filter((value) => typeof value === "string" && isAbsolutePathLike(value));
+}
+
+function isAbsolutePathLike(value) {
+  return (
+    String(value || "").startsWith("/") ||
+    /^[a-zA-Z]:[\\/]/.test(String(value || "")) ||
+    /^\\\\/.test(String(value || "")) ||
+    /^[\\/][a-zA-Z][\\/]/.test(String(value || ""))
+  );
 }
 
 function isLikelyPreviousProjectPath(candidate, currentPaths, normalizeAbsolutePath) {
