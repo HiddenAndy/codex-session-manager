@@ -14,6 +14,7 @@ const serverSource = [
   ...(await Promise.all(serverModuleFiles.map((fileName) => readFile(join(serverModuleDir, fileName), "utf8")))),
 ].join("\n");
 const projectActionsSource = await readFile(join(root, "public", "js", "project-actions.js"), "utf8");
+const updateUiSource = await readFile(join(root, "public", "js", "update-ui.js"), "utf8");
 
 assert.doesNotMatch(serverSource, /github\.com[:/]Hidden[^/]+\/codex-session-manager/i, "server code should not hard-code a personal GitHub account");
 assert.match(serverSource, /ARCHIVED_SESSIONS_ROOT/, "server should scan archived_sessions");
@@ -45,6 +46,11 @@ assert.equal(chatSizeAdvice(14 * 1024 * 1024), null, "chats below 15MB should no
 assert.equal(chatSizeAdvice(15 * 1024 * 1024).label, "새 채팅 고려", "15MB chats should suggest considering a new chat");
 assert.equal(chatSizeAdvice(30 * 1024 * 1024).label, "새 채팅 권장", "30MB chats should recommend a new chat");
 assert.equal(chatSizeAdvice(50 * 1024 * 1024).label, "새 채팅 강력 권장", "50MB chats should strongly recommend a new chat");
+
+assert.match(updateUiSource, /showManualUpdateGuide/, "update UI should provide manual update guidance");
+assert.match(updateUiSource, /codex-session-manager\.zip/, "manual update guidance should name the release zip");
+assert.match(updateUiSource, /releases\/latest/, "manual update guidance should link to the latest release when possible");
+assert.match(updateUiSource, /catch \(error\)[\s\S]*showManualUpdateGuide\(error, updateInfo\)/, "install failures should show manual update guidance");
 
 const pathNormalizer = createPathNormalizer((value) => value);
 assert.equal(pathNormalizer.normalizeAbsolutePath("D:\\Codex\\repo"), "D:/Codex/repo", "Windows drive paths should normalize consistently");
