@@ -63,6 +63,9 @@ assert.match(appEventsSource, /refresh\(\)\s*\n\s*\.then\(\(\) => maybeShowUpdat
 assert.match(stylesSource, /\.topbar\s*\{[\s\S]*?position:\s*sticky;[\s\S]*?top:\s*0;/, "topbar should stay visible while scrolling");
 assert.match(stylesSource, /\.side-column\s*\{[\s\S]*?top:\s*var\(--side-sticky-top, 24px\)/, "side column should offset below the sticky header");
 assert.match(sideColumnSource, /topbar\?\.getBoundingClientRect\(\)\.bottom/, "side column layout should account for the sticky header height");
+assert.match(sideColumnSource, /--layout-visible-height/, "side column layout should share its visible height with the main layout");
+assert.match(stylesSource, /\.content-column\s*\{[\s\S]*?min-height:\s*var\(--layout-visible-height, auto\)/, "content column should share the side column bottom alignment height");
+assert.match(stylesSource, /\.content-column > \.panel:last-child\s*\{[\s\S]*?flex:\s*1;/, "last content panel should stretch to the shared layout height");
 assert.match(stylesSource, /\.thread-row\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) max-content;/, "thread actions should occupy a real grid column");
 assert.match(stylesSource, /\.backup-row\s*\{[\s\S]*?grid-template-columns:[\s\S]*minmax\(0, 1fr\)/, "backup rows should allow long paths to shrink inside the row");
 assert.match(stylesSource, /\.backup-actions button\s*\{[\s\S]*?white-space:\s*nowrap;/, "backup action labels should not break vertically");

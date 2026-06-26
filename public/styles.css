@@ -198,7 +198,15 @@ main {
 }
 
 .content-column {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+  min-height: var(--layout-visible-height, auto);
+}
+
+.content-column > .panel:last-child {
+  flex: 1;
+  margin-bottom: 0;
 }
 
 .side-column {
