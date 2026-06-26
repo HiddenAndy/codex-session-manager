@@ -4,7 +4,7 @@ Local-only diagnostics and repair UI for Codex Desktop session history.
 
 ## Run
 
-macOS에서는 `start.command`를 더블클릭하면 됩니다.
+macOS에서는 `start.command`, Windows에서는 `start.ps1`을 실행하면 됩니다.
 
 - 필요한 경우에만 `npm install`을 실행합니다.
 - 서버가 준비되면 브라우저를 자동으로 엽니다.
