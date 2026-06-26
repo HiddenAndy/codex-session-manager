@@ -8,6 +8,7 @@ export function createRepairService(deps) {
     buildSummary,
     exists,
     getPaths,
+    loadIndex,
     readSessionSummary,
     shouldReplaceStoredTitle,
     sqlite,

@@ -21,6 +21,8 @@ assert.match(serverSource, /pruneDbThreadsWithMissingSessionFiles/, "restore sho
 assert.match(serverSource, /createChatTransferService/, "server should include chat transfer backup service");
 const chatTransferServiceConfig = serverSource.match(/createChatTransferService\(\{[\s\S]*?\n\}\);/)?.[0] || "";
 assert.match(chatTransferServiceConfig, /ARCHIVED_SESSIONS_ROOT/, "chat transfer service should receive archived_sessions root");
+const repairServiceConfig = serverSource.match(/createRepairService\(\{[\s\S]*?\n\}\);/)?.[0] || "";
+assert.match(repairServiceConfig, /loadIndex/, "repair service should receive loadIndex for index-row repair");
 assert.match(serverSource, /\/api\/export-chat-backup/, "server should expose chat backup export API");
 assert.match(serverSource, /\/api\/import-chat-backup/, "server should expose chat backup import API");
 assert.match(serverSource, /platform\(\) === "win32"/, "path picker should support Windows");

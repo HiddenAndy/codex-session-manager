@@ -426,6 +426,7 @@ const repairService = createRepairService({
     SESSION_INDEX,
     STATE_DB,
   }),
+  loadIndex,
   readSessionSummary,
   shouldReplaceStoredTitle,
   sqlite,
