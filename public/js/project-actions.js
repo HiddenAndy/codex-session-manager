@@ -61,14 +61,16 @@ function projectParentPath(project) {
 
 async function repairProjectPath(from) {
   if (!(await ensureCodexClosedForProjectChange())) return;
-  const input = await showPrompt(`프로젝트의 새 경로를 입력하세요.\n\n기존 경로: ${from}`, {
-    title: "프로젝트 경로 변경",
-    label: "새 프로젝트 경로",
-    value: from,
-    confirmText: "변경",
+  const selected = await api("/api/select-path", {
+    method: "POST",
+    body: JSON.stringify({
+      kind: "directory",
+      currentPath: from,
+      prompt: "새 프로젝트 폴더를 선택하세요.",
+    }),
   });
-  if (input === false) return;
-  const to = String(input || "").trim();
+  if (selected.canceled) return;
+  const to = String(selected.path || "").trim();
   if (!to || to === from) return;
   if (!(await showConfirm(`프로젝트 경로를 변경할까요?\n\n기존: ${from}\n새 경로: ${to}\n\n세션 JSONL과 SQLite threads가 함께 변경되고 백업이 생성됩니다.`, { confirmText: "변경" }))) return;
   setProjectSectionLoading(from, "프로젝트 경로를 변경하는 중...");
@@ -91,30 +93,30 @@ async function repairProjectPath(from) {
 
 async function moveProjectPath(project) {
   if (!(await ensureCodexClosedForProjectChange())) return;
-  const input = await showPrompt(`프로젝트를 이동할 상위 폴더 경로를 입력하세요.\n\n현재 경로: ${project}`, {
-    title: "프로젝트 경로 변경",
-    label: "새 상위 폴더",
-    value: projectParentPath(project),
-    confirmText: "변경",
+  const selected = await api("/api/select-path", {
+    method: "POST",
+    body: JSON.stringify({
+      kind: "directory",
+      currentPath: projectParentPath(project),
+      prompt: "새 프로젝트 폴더를 선택하세요.",
+    }),
   });
-  if (input === false) return;
-  const parent = String(input || "").trim();
-  const name = projectBaseName(project);
-  if (!parent) return;
-  const to = `${parent.replace(/[\\/]$/, "")}/${name}`;
+  if (selected.canceled) return;
+  const to = String(selected.path || "").trim();
+  if (!to) return;
   if (to === project) return;
   if (
     !(await showConfirm(
-      `실제 프로젝트 폴더를 이동할까요?\n\n기존 경로: ${project}\n새 경로: ${to}\n\nCodex 세션/DB/프로젝트 목록 참조도 함께 갱신합니다.`,
+      `프로젝트 참조 경로를 변경할까요?\n\n기존 경로: ${project}\n새 경로: ${to}\n\n세션 JSONL과 SQLite threads가 함께 변경되고 백업이 생성됩니다.`,
       { confirmText: "변경" },
     ))
   ) {
     return;
   }
   setProjectSectionLoading(project, "프로젝트 경로를 변경하는 중...");
-  await api("/api/move-project", {
+  await api("/api/repair-cwd", {
     method: "POST",
-    body: JSON.stringify({ project, parent }),
+    body: JSON.stringify({ from: project, to, includeJsonl: true, includeDb: true }),
   });
   expandedProjects.delete(projectKey(project));
   expandedProjects.add(projectKey(to));

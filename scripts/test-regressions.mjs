@@ -12,6 +12,7 @@ const serverSource = [
   await readFile(join(root, "server.mjs"), "utf8"),
   ...(await Promise.all(serverModuleFiles.map((fileName) => readFile(join(serverModuleDir, fileName), "utf8")))),
 ].join("\n");
+const projectActionsSource = await readFile(join(root, "public", "js", "project-actions.js"), "utf8");
 
 assert.doesNotMatch(serverSource, /github\.com[:/]Hidden[^/]+\/codex-session-manager/i, "server code should not hard-code a personal GitHub account");
 assert.match(serverSource, /ARCHIVED_SESSIONS_ROOT/, "server should scan archived_sessions");
@@ -32,6 +33,11 @@ assert.match(serverSource, /updateRunnerScriptWindows/, "update installer should
 assert.match(serverSource, /powershell\.exe/, "update installer should run through PowerShell on Windows");
 assert.match(serverSource, /run-update-\$\{timestampSlug\(\)\}\$\{isWindows \? "\.ps1" : "\.sh"\}/, "update installer should write platform-specific runner scripts");
 assert.match(serverSource, /start\.ps1/, "update installer should preserve and restart through the Windows launcher");
+const moveProjectPathSource = projectActionsSource.match(/async function moveProjectPath\(project\) \{[\s\S]*?\n\}/)?.[0] || "";
+assert.match(moveProjectPathSource, /\/api\/select-path/, "project path changes should use the native folder picker");
+assert.match(moveProjectPathSource, /const to = String\(selected\.path/, "selected project folder should be treated as the final path");
+assert.match(moveProjectPathSource, /\/api\/repair-cwd/, "project path changes should update Codex references directly");
+assert.doesNotMatch(moveProjectPathSource, /\/api\/move-project/, "project path changes should not append the old basename to a selected parent");
 
 const pathNormalizer = createPathNormalizer((value) => value);
 assert.equal(pathNormalizer.normalizeAbsolutePath("D:\\Codex\\repo"), "D:/Codex/repo", "Windows drive paths should normalize consistently");
