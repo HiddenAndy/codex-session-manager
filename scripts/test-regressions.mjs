@@ -25,6 +25,10 @@ assert.match(serverSource, /\/api\/import-chat-backup/, "server should expose ch
 assert.match(serverSource, /platform\(\) === "win32"/, "path picker should support Windows");
 assert.match(serverSource, /isAbsolutePathLike/, "path handling should recognize Windows absolute paths");
 assert.match(serverSource, /\^\[a-zA-Z\]:\[\\\\\/\]/, "path handling should recognize drive-letter paths");
+assert.match(serverSource, /updateRunnerScriptWindows/, "update installer should include a Windows runner");
+assert.match(serverSource, /powershell\.exe/, "update installer should run through PowerShell on Windows");
+assert.match(serverSource, /run-update-\$\{timestampSlug\(\)\}\$\{isWindows \? "\.ps1" : "\.sh"\}/, "update installer should write platform-specific runner scripts");
+assert.match(serverSource, /start\.ps1/, "update installer should preserve and restart through the Windows launcher");
 
 const pathNormalizer = createPathNormalizer((value) => value);
 assert.equal(pathNormalizer.normalizeAbsolutePath("D:\\Codex\\repo"), "D:/Codex/repo", "Windows drive paths should normalize consistently");

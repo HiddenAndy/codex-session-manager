@@ -111,7 +111,7 @@ function renderGroups() {
 function renderProjectSections(groups) {
   if (groups.length === 0) return `<div class="empty">현재 필터와 일치하는 채팅이 없습니다.</div>`;
   const projectEntries = [...buildProjectMap(groups).entries()].filter(([project, projectGroups]) => {
-    if (project !== "/Users/andy/Documents/Codex") return true;
+    if (!isDefaultCodexDocumentsProject(project)) return true;
     return projectGroups.some((group) => groupRecords(group).length > 0);
   });
   if (projectEntries.length === 0) return `<div class="empty">현재 필터와 일치하는 채팅이 없습니다.</div>`;
@@ -121,6 +121,10 @@ function renderProjectSections(groups) {
     return 0;
   });
   return projectEntries.map(([project, projectGroups]) => renderProjectSection(project, projectGroups)).join("");
+}
+
+function isDefaultCodexDocumentsProject(project) {
+  return /(^|[\\/])Documents[\\/]Codex$/i.test(String(project || ""));
 }
 
 function buildProjectMap(groups) {

@@ -481,9 +481,10 @@ async function choosePath(button) {
 }
 
 function backupPathFromSelectedParent(path) {
-  const value = String(path || "").replace(/\/+$/, "");
+  const value = String(path || "").replace(/[\\/]+$/, "");
   if (!value) return "";
-  return value.split("/").at(-1) === "backups" ? value : `${value}/backups`;
+  const separator = value.includes("\\") && !value.includes("/") ? "\\" : "/";
+  return value.split(/[\\/]+/).at(-1) === "backups" ? value : `${value}${separator}backups`;
 }
 
 async function shutdownProgram() {

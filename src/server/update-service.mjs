@@ -21,6 +21,10 @@ function shellQuote(value) {
   return `'${String(value).replaceAll("'", "'\\''")}'`;
 }
 
+function powershellQuote(value) {
+  return `'${String(value).replaceAll("'", "''")}'`;
+}
+
 function timestampSlug() {
   return new Date().toISOString().replace(/[-:]/g, "").replace(/\..+/, "").replace("T", "-");
 }
@@ -333,19 +337,21 @@ cleanup_update_work() {
   fi
   BACKUP_DIR="$APP_DIR/updates/backup-$(date +%Y%m%d-%H%M%S)"
   mkdir -p "$BACKUP_DIR"
-  for item in README.md package.json package-lock.json server.mjs start.command stop.command public docs scripts src; do
+  for item in README.md package.json package-lock.json server.mjs start.command start.ps1 stop.command public docs scripts src; do
     if [ -e "$APP_DIR/$item" ]; then
       mv "$APP_DIR/$item" "$BACKUP_DIR/$item"
     fi
   done
-  cp "$SRC_DIR/README.md" "$APP_DIR/README.md"
-  cp "$SRC_DIR/package.json" "$APP_DIR/package.json"
-  cp "$SRC_DIR/package-lock.json" "$APP_DIR/package-lock.json"
-  cp "$SRC_DIR/server.mjs" "$APP_DIR/server.mjs"
-  cp "$SRC_DIR/start.command" "$APP_DIR/start.command"
-  cp "$SRC_DIR/stop.command" "$APP_DIR/stop.command"
+  for item in README.md package.json package-lock.json server.mjs start.command start.ps1 stop.command public docs scripts src; do
+    if [ -d "$SRC_DIR/$item" ]; then
+      rm -rf "$APP_DIR/$item"
+      cp -R "$SRC_DIR/$item" "$APP_DIR/$item"
+    elif [ -f "$SRC_DIR/$item" ]; then
+      cp "$SRC_DIR/$item" "$APP_DIR/$item"
+    fi
+  done
   for dir in public docs scripts src; do
-    if [ -d "$SRC_DIR/$dir" ]; then
+    if [ -d "$SRC_DIR/$dir" ] && [ ! -d "$APP_DIR/$dir" ]; then
       rm -rf "$APP_DIR/$dir"
       cp -R "$SRC_DIR/$dir" "$APP_DIR/$dir"
     fi
@@ -371,6 +377,116 @@ UPDATE_STATE_JSON
 `;
   }
 
+  function updateRunnerScriptWindows({ zipPath, candidate }) {
+    const updateState = {
+      source: candidate.source,
+      label: candidate.label,
+      version: candidate.latestVersion || packageMetadata.version,
+      revision: candidate.latestRevision || "",
+      updatedAt: new Date().toISOString(),
+    };
+    return `$ErrorActionPreference = 'Stop'
+$APP_DIR = ${powershellQuote(appDir)}
+$ZIP_PATH = ${powershellQuote(zipPath)}
+$SERVER_PID = ${Number(process.pid)}
+$PORT = ${powershellQuote(port)}
+$UPDATE_STATE = ${powershellQuote(updateStatePath)}
+$LOG_DIR = Join-Path $APP_DIR 'logs'
+New-Item -ItemType Directory -Force -Path $LOG_DIR | Out-Null
+$LOG_FILE = Join-Path $LOG_DIR ('update-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.log')
+$ITEMS = @('README.md', 'package.json', 'package-lock.json', 'server.mjs', 'start.command', 'start.ps1', 'stop.command', 'public', 'docs', 'scripts', 'src')
+
+function Write-UpdateLog([string]$Message) {
+  Add-Content -LiteralPath $LOG_FILE -Encoding UTF8 -Value $Message
+}
+
+function Remove-UpdatePath([string]$Path) {
+  if (Test-Path -LiteralPath $Path) {
+    Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
+  }
+}
+
+function Cleanup-UpdateWork {
+  Remove-UpdatePath $ZIP_PATH
+  Remove-UpdatePath $MyInvocation.ScriptName
+  Get-ChildItem -LiteralPath (Join-Path $APP_DIR 'updates') -Directory -Filter 'extract.*' -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+  Get-ChildItem -LiteralPath (Join-Path $APP_DIR 'updates') -Directory -Filter 'backup-*' -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+  Get-ChildItem -LiteralPath (Join-Path $APP_DIR 'updates') -File -Filter 'codex-session-manager-update-*.zip' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+  Get-ChildItem -LiteralPath (Join-Path $APP_DIR 'updates') -File -Filter 'run-update-*.ps1' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+}
+
+try {
+  Write-UpdateLog ('Codex Session Manager update start: ' + (Get-Date -Format o))
+  Write-UpdateLog ${powershellQuote(`Source: ${candidate.source} ${candidate.label || ""}`)}
+
+  for ($index = 0; $index -lt 20; $index += 1) {
+    if (Get-Process -Id $SERVER_PID -ErrorAction SilentlyContinue) {
+      Start-Sleep -Milliseconds 250
+    } else {
+      break
+    }
+  }
+
+  $TMP_DIR = Join-Path (Join-Path $APP_DIR 'updates') ('extract.' + [Guid]::NewGuid().ToString('N'))
+  New-Item -ItemType Directory -Force -Path $TMP_DIR | Out-Null
+  Expand-Archive -LiteralPath $ZIP_PATH -DestinationPath $TMP_DIR -Force
+
+  $SRC_DIR = Get-ChildItem -LiteralPath $TMP_DIR -Recurse -File -Filter 'package.json' |
+    ForEach-Object {
+      $candidateDir = $_.DirectoryName
+      if ((Test-Path -LiteralPath (Join-Path $candidateDir 'server.mjs') -PathType Leaf) -and
+          (Test-Path -LiteralPath (Join-Path $candidateDir 'public') -PathType Container)) {
+        $candidateDir
+      }
+    } |
+    Select-Object -First 1
+
+  if (-not $SRC_DIR) {
+    throw 'No application root found in update archive.'
+  }
+
+  $BACKUP_DIR = Join-Path (Join-Path $APP_DIR 'updates') ('backup-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+  New-Item -ItemType Directory -Force -Path $BACKUP_DIR | Out-Null
+
+  foreach ($item in $ITEMS) {
+    $from = Join-Path $APP_DIR $item
+    if (Test-Path -LiteralPath $from) {
+      Move-Item -LiteralPath $from -Destination (Join-Path $BACKUP_DIR $item) -Force
+    }
+  }
+
+  foreach ($item in $ITEMS) {
+    $from = Join-Path $SRC_DIR $item
+    if (Test-Path -LiteralPath $from) {
+      Copy-Item -LiteralPath $from -Destination (Join-Path $APP_DIR $item) -Recurse -Force
+    }
+  }
+
+  @'
+${JSON.stringify(updateState, null, 2)}
+'@ | Set-Content -LiteralPath $UPDATE_STATE -Encoding UTF8
+
+  Cleanup-UpdateWork
+  Write-UpdateLog 'Update complete. Update work files cleaned.'
+
+  if (Get-Command npm -ErrorAction SilentlyContinue) {
+    & npm --prefix $APP_DIR install 2>&1 | ForEach-Object { Write-UpdateLog ([string]$_) }
+    $startScript = Join-Path $APP_DIR 'start.ps1'
+    if (Test-Path -LiteralPath $startScript -PathType Leaf) {
+      Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $startScript) -WindowStyle Hidden
+    } else {
+      Write-UpdateLog 'Update installed. Run start.ps1 to restart the server.'
+    }
+  } else {
+    Write-UpdateLog 'npm command not found; update installed but server was not restarted.'
+  }
+} catch {
+  Write-UpdateLog ('Update failed: ' + $_.Exception.Message)
+  throw
+}
+`;
+  }
+
   async function installUpdate() {
     const candidate = await getUpdateStatus();
     if (!candidate.available || !candidate.downloadUrl) {
@@ -378,12 +494,20 @@ UPDATE_STATE_JSON
     }
     const zipPath = await downloadUpdateZip(candidate);
     await mkdir(updateWorkDir, { recursive: true });
-    const scriptPath = join(updateWorkDir, `run-update-${timestampSlug()}.sh`);
-    await writeFile(scriptPath, updateRunnerScript({ zipPath, candidate }), "utf8");
-    const child = spawn("sh", [scriptPath], {
+    const isWindows = process.platform === "win32";
+    const scriptPath = join(updateWorkDir, `run-update-${timestampSlug()}${isWindows ? ".ps1" : ".sh"}`);
+    await writeFile(
+      scriptPath,
+      isWindows ? updateRunnerScriptWindows({ zipPath, candidate }) : updateRunnerScript({ zipPath, candidate }),
+      "utf8",
+    );
+    const child = spawn(isWindows ? "powershell.exe" : "sh", isWindows
+      ? ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath]
+      : [scriptPath], {
       cwd: appDir,
       detached: true,
       stdio: "ignore",
+      windowsHide: true,
     });
     child.unref();
     return {

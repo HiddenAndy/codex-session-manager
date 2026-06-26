@@ -149,9 +149,10 @@ function isContextOnlyMessage(message) {
 
 function isDeveloperInstructionTitle(message) {
   const textValue = String(message || "").trim();
+  const startsWithPathContext = /^In (?:\/Users\/|[a-zA-Z]:[\\/]|\/\/[^/\\]+[\\/][^/\\]+[\\/])/.test(textValue);
   return (
-    (textValue.startsWith("In /Users/") && textValue.includes("Do not edit files")) ||
-    (textValue.startsWith("In /Users/") && textValue.includes("Produce only")) ||
+    (startsWithPathContext && textValue.includes("Do not edit files")) ||
+    (startsWithPathContext && textValue.includes("Produce only")) ||
     textValue.startsWith("We need ")
   );
 }

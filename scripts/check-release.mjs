@@ -1,9 +1,10 @@
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
+import { tmpdir } from "node:os";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const version = JSON.parse(await readFile(join(root, "package.json"), "utf8")).version;
@@ -14,6 +15,62 @@ function fail(message) {
   process.exitCode = 1;
 }
 
+function hasCommand(command) {
+  try {
+    if (process.platform === "win32") {
+      execFileSync("where.exe", [command], { stdio: "ignore" });
+    } else {
+      execFileSync("sh", ["-c", `command -v ${command}`], { stdio: "ignore" });
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function listFilesRecursive(baseDir, rootDir = baseDir) {
+  const entries = await readdir(baseDir, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const fullPath = join(baseDir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...await listFilesRecursive(fullPath, rootDir));
+    } else if (entry.isFile()) {
+      files.push(relative(rootDir, fullPath).replaceAll("\\", "/"));
+    }
+  }
+  return files;
+}
+
+async function inspectReleaseZip() {
+  if (hasCommand("unzip")) {
+    return {
+      packageJson: execFileSync("unzip", ["-p", zipPath, "codex-session-manager/package.json"], { encoding: "utf8" }),
+      listing: execFileSync("unzip", ["-l", zipPath], { encoding: "utf8" }),
+    };
+  }
+  if (process.platform !== "win32") throw new Error("unzip command is required to inspect the release zip.");
+  const tempRoot = await mkdtemp(join(tmpdir(), "codex-session-manager-release-"));
+  try {
+    execFileSync("powershell.exe", [
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      "& { param($zipPath, $destination) Expand-Archive -LiteralPath $zipPath -DestinationPath $destination -Force }",
+      zipPath,
+      tempRoot,
+    ], { stdio: "ignore" });
+    const packageRoot = join(tempRoot, "codex-session-manager");
+    return {
+      packageJson: await readFile(join(packageRoot, "package.json"), "utf8"),
+      listing: (await listFilesRecursive(tempRoot)).join("\n"),
+    };
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+}
+
 if (!version) fail("package.json version is missing.");
 if (!existsSync(join(root, "docs", "patch-notes", "releases", `${version}.md`))) {
   fail(`patch notes file is missing: docs/patch-notes/releases/${version}.md`);
@@ -21,12 +78,12 @@ if (!existsSync(join(root, "docs", "patch-notes", "releases", `${version}.md`)))
 if (!existsSync(zipPath)) {
   fail("release zip is missing: dist/codex-session-manager.zip");
 } else {
-  const packageJson = execFileSync("unzip", ["-p", zipPath, "codex-session-manager/package.json"], { encoding: "utf8" });
+  const { packageJson, listing } = await inspectReleaseZip();
   const distVersion = JSON.parse(packageJson).version;
   if (distVersion !== version) fail(`zip version mismatch: package=${version}, zip=${distVersion}`);
-  const listing = execFileSync("unzip", ["-l", zipPath], { encoding: "utf8" });
   for (const required of [
     "codex-session-manager/server.mjs",
+    "codex-session-manager/start.ps1",
     "codex-session-manager/public/app.js",
     "codex-session-manager/docs/patch-notes.md",
     `codex-session-manager/docs/patch-notes/releases/${version}.md`,
