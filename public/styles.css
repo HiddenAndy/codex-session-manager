@@ -40,6 +40,9 @@ body.modal-open {
 }
 
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 120;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -47,6 +50,7 @@ body.modal-open {
   padding: 20px 28px;
   border-bottom: 1px solid var(--border);
   background: #fff;
+  box-shadow: 0 1px 0 rgba(23, 32, 42, 0.04);
 }
 
 .topbar-actions {

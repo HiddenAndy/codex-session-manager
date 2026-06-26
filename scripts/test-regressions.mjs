@@ -15,6 +15,9 @@ const serverSource = [
 ].join("\n");
 const projectActionsSource = await readFile(join(root, "public", "js", "project-actions.js"), "utf8");
 const updateUiSource = await readFile(join(root, "public", "js", "update-ui.js"), "utf8");
+const indexHtmlSource = await readFile(join(root, "public", "index.html"), "utf8");
+const appEventsSource = await readFile(join(root, "public", "js", "app-events.js"), "utf8");
+const stylesSource = await readFile(join(root, "public", "styles.css"), "utf8");
 
 assert.doesNotMatch(serverSource, /github\.com[:/]Hidden[^/]+\/codex-session-manager/i, "server code should not hard-code a personal GitHub account");
 assert.match(serverSource, /ARCHIVED_SESSIONS_ROOT/, "server should scan archived_sessions");
@@ -51,6 +54,12 @@ assert.match(updateUiSource, /showManualUpdateGuide/, "update UI should provide 
 assert.match(updateUiSource, /codex-session-manager\.zip/, "manual update guidance should name the release zip");
 assert.match(updateUiSource, /releases\/latest/, "manual update guidance should link to the latest release when possible");
 assert.match(updateUiSource, /catch \(error\)[\s\S]*showManualUpdateGuide\(error, updateInfo\)/, "install failures should show manual update guidance");
+
+assert.doesNotMatch(indexHtmlSource, /refreshButton|새로고침/, "topbar should not show the ineffective refresh button");
+assert.match(indexHtmlSource, /id="shutdownButton"/, "topbar should keep the shutdown button");
+assert.doesNotMatch(appEventsSource, /refreshButton/, "app events should not bind the removed refresh button");
+assert.match(appEventsSource, /refresh\(\)\s*\n\s*\.then\(\(\) => maybeShowUpdateNotice\(\)\)/, "app events should still run the initial refresh");
+assert.match(stylesSource, /\.topbar\s*\{[\s\S]*?position:\s*sticky;[\s\S]*?top:\s*0;/, "topbar should stay visible while scrolling");
 
 const pathNormalizer = createPathNormalizer((value) => value);
 assert.equal(pathNormalizer.normalizeAbsolutePath("D:\\Codex\\repo"), "D:/Codex/repo", "Windows drive paths should normalize consistently");

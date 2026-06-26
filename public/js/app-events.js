@@ -51,9 +51,6 @@ export function setupAppEvents(deps) {
     updateSearchClearButton,
   } = deps;
 
-  $("#refreshButton").addEventListener("click", () => {
-    refresh().catch(showError);
-  });
   $("#shutdownButton").addEventListener("click", () => {
     shutdownProgram().catch(showError);
   });
