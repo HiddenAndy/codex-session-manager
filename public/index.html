@@ -23,7 +23,11 @@
         <section class="panel">
         <div class="section-title">
           <h2>채팅 목록</h2>
-          <span>사용자 세션을 펼치면 하위 agent 세션을 확인할 수 있습니다.</span>
+          <div class="section-actions">
+            <span>사용자 세션을 펼치면 하위 agent 세션을 확인할 수 있습니다.</span>
+            <button id="chatBackupModeButton" class="small" type="button"><span class="button-icon" data-lucide="archive" aria-hidden="true"></span>채팅 내보내기</button>
+            <button id="importChatBackupButton" class="small" type="button"><span class="button-icon" data-lucide="archive-restore" aria-hidden="true"></span>가져오기</button>
+          </div>
         </div>
         <div class="toolbar">
           <div class="search-control">
@@ -41,6 +45,7 @@
           <span id="selectionCount">0개 선택</span>
           <div class="selection-actions">
             <button id="clearSelectionButton" class="small" type="button">선택 해제</button>
+            <button id="exportSelectedChatsButton" class="small" type="button"><span class="button-icon" data-lucide="download" aria-hidden="true"></span>선택 내보내기</button>
             <button id="deleteSelectedButton" class="danger small" type="button"><span class="button-icon" data-lucide="trash-2" aria-hidden="true"></span>선택 삭제</button>
           </div>
         </div>
@@ -75,7 +80,6 @@
           <div class="side-section-header">
             <div>
               <h2 id="updatePanelTitle">업데이트</h2>
-              <p class="side-heading-description">새 버전 확인과 패치노트를 확인합니다.</p>
             </div>
           </div>
           <div class="header-update" aria-live="polite">
@@ -125,7 +129,7 @@
             <div class="path-field">
               <label>
                 백업 위치
-                <input id="backupsRootInput" name="backupsRoot" placeholder="backups" autocomplete="off" readonly />
+                <input id="backupsRootInput" name="backupsRoot" placeholder="/Users/andy/workspace/codex-session-manager/backups" autocomplete="off" readonly />
               </label>
               <button type="button" data-select-path="backupsRootInput" data-path-kind="directory">선택</button>
             </div>
@@ -245,6 +249,7 @@
         </label>
         <div class="app-modal-actions">
           <button id="appModalCancel" type="button">취소</button>
+          <button id="appModalSecondary" type="button" hidden></button>
           <button id="appModalConfirm" type="button">확인</button>
         </div>
       </div>

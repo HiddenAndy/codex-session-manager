@@ -15,24 +15,6 @@ export function execFileText(command, args) {
 }
 
 export async function getCodexProcessStatus() {
-  if (process.platform === "win32") {
-    try {
-      const output = await execFileText("powershell", [
-        "-NoProfile",
-        "-Command",
-        "Get-Process -Name Codex,codex -ErrorAction SilentlyContinue | Select-Object Id,ProcessName,Path | ConvertTo-Json -Compress",
-      ]);
-      const parsed = output.trim() ? JSON.parse(output) : [];
-      const rows = Array.isArray(parsed) ? parsed : [parsed];
-      const processes = rows
-        .filter((row) => row && String(row.ProcessName || "").toLowerCase() === "codex")
-        .map((row) => ({ pid: Number(row.Id), command: row.Path || row.ProcessName }));
-      return { open: processes.length > 0, processes };
-    } catch (error) {
-      return { open: false, error: error.message };
-    }
-  }
-
   try {
     const output = await execFileText("ps", ["-axo", "pid=,args="]);
     const processes = output

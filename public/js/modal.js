@@ -2,6 +2,7 @@ export function createModalController({ $, renderPatchNotesMarkdown }) {
   let modalResolve = null;
   let modalPreviousFocus = null;
   let modalInputMode = false;
+  let modalSecondaryAction = null;
 
   function showPatchNoteStarBurst(origin) {
     const rect = origin.getBoundingClientRect();
@@ -55,6 +56,7 @@ export function createModalController({ $, renderPatchNotesMarkdown }) {
     const metaEl = $("#appModalMeta");
     const inputWrap = $("#appModalInputWrap");
     const input = $("#appModalInput");
+    const secondaryButton = $("#appModalSecondary");
     if (result === true && modalInputMode) result = input.value;
     modal.hidden = true;
     delete modal.dataset.variant;
@@ -62,6 +64,10 @@ export function createModalController({ $, renderPatchNotesMarkdown }) {
     metaEl.textContent = "";
     inputWrap.hidden = true;
     input.value = "";
+    secondaryButton.hidden = true;
+    secondaryButton.textContent = "";
+    secondaryButton.className = "";
+    modalSecondaryAction = null;
     modalInputMode = false;
     document.body.classList.remove("modal-open");
     if (modalResolve) modalResolve(result);
@@ -70,13 +76,14 @@ export function createModalController({ $, renderPatchNotesMarkdown }) {
     modalPreviousFocus = null;
   }
 
-  function showModal({ title = "확인", message = "", confirmText = "확인", cancelText = null, danger = false, variant = "", meta = "" } = {}) {
+  function showModal({ title = "확인", message = "", confirmText = "확인", cancelText = null, danger = false, variant = "", meta = "", secondaryText = "", onSecondary = null } = {}) {
     const modal = $("#appModal");
     const titleEl = $("#appModalTitle");
     const metaEl = $("#appModalMeta");
     const messageEl = $("#appModalMessage");
     const confirmButton = $("#appModalConfirm");
     const cancelButton = $("#appModalCancel");
+    const secondaryButton = $("#appModalSecondary");
     const inputWrap = $("#appModalInputWrap");
     const input = $("#appModalInput");
     if (modalResolve) closeModal(false);
@@ -93,6 +100,10 @@ export function createModalController({ $, renderPatchNotesMarkdown }) {
     input.value = "";
     confirmButton.textContent = confirmText;
     confirmButton.className = danger ? "danger" : "primary";
+    secondaryButton.textContent = secondaryText || "";
+    secondaryButton.className = "";
+    secondaryButton.hidden = !secondaryText;
+    modalSecondaryAction = typeof onSecondary === "function" ? onSecondary : null;
     cancelButton.textContent = cancelText || "";
     cancelButton.hidden = !cancelText;
     modal.hidden = false;
@@ -109,6 +120,7 @@ export function createModalController({ $, renderPatchNotesMarkdown }) {
     const messageEl = $("#appModalMessage");
     const confirmButton = $("#appModalConfirm");
     const cancelButton = $("#appModalCancel");
+    const secondaryButton = $("#appModalSecondary");
     const inputWrap = $("#appModalInputWrap");
     const inputLabel = $("#appModalInputLabel");
     const input = $("#appModalInput");
@@ -126,6 +138,10 @@ export function createModalController({ $, renderPatchNotesMarkdown }) {
     inputWrap.hidden = false;
     confirmButton.textContent = options.confirmText || "확인";
     confirmButton.className = options.danger ? "danger" : "primary";
+    secondaryButton.hidden = true;
+    secondaryButton.textContent = "";
+    secondaryButton.className = "";
+    modalSecondaryAction = null;
     cancelButton.textContent = options.cancelText || "취소";
     cancelButton.hidden = false;
     modal.hidden = false;
@@ -144,6 +160,8 @@ export function createModalController({ $, renderPatchNotesMarkdown }) {
       confirmText: "확인",
       variant: options.variant || "",
       meta: options.meta || "",
+      secondaryText: options.secondaryText || "",
+      onSecondary: options.onSecondary || null,
     });
   }
 
@@ -161,5 +179,10 @@ export function createModalController({ $, renderPatchNotesMarkdown }) {
     return showAlert(error?.message || String(error), "오류");
   }
 
-  return { closeModal, showAlert, showConfirm, showError, showModal, showPrompt };
+  async function runModalSecondaryAction() {
+    if (!modalSecondaryAction) return;
+    await modalSecondaryAction();
+  }
+
+  return { closeModal, runModalSecondaryAction, showAlert, showConfirm, showError, showModal, showPrompt };
 }

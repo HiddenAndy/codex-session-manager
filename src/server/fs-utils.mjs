@@ -49,7 +49,7 @@ export function isInside(child, parent) {
 }
 
 export function isAbsolutePath(value) {
-  return isAbsolute(stripWindowsExtendedPathPrefix(value));
+  return isAbsolutePathLike(stripWindowsExtendedPathPrefix(value));
 }
 
 export function stripWindowsExtendedPathPrefix(value) {
@@ -61,18 +61,46 @@ export function stripWindowsExtendedPathPrefix(value) {
   return textValue;
 }
 
+function isAbsolutePathLike(value) {
+  const textValue = stripWindowsExtendedPathPrefix(value);
+  return (
+    isAbsolute(textValue) ||
+    /^[a-zA-Z]:[\\/]/.test(textValue) ||
+    /^\\\\/.test(textValue) ||
+    /^[\\/][a-zA-Z][\\/]/.test(textValue)
+  );
+}
+
 function toWindowsExtendedPath(value) {
   const textValue = String(value || "").trim();
-  if (process.platform !== "win32" || !isAbsolute(textValue) || textValue.startsWith("\\\\?\\")) return "";
+  if (process.platform !== "win32" || !isAbsolutePathLike(textValue) || textValue.startsWith("\\\\?\\")) return "";
   if (textValue.startsWith("\\\\")) return `\\\\?\\UNC\\${textValue.slice(2)}`;
   return `\\\\?\\${textValue}`;
 }
 
+function legacyDriveRootPath(value) {
+  const match = stripWindowsExtendedPathPrefix(value).match(/^[\\/]{1,2}([a-zA-Z])[\\/](.+)$/);
+  if (!match) return "";
+  return `${match[1].toUpperCase()}:/${match[2].replaceAll("\\", "/")}`;
+}
+
+function wslMountPath(value) {
+  const match = String(value || "").trim().match(/^\/mnt\/([a-zA-Z])\/(.+)$/);
+  if (!match) return "";
+  return `${match[1].toUpperCase()}:/${match[2]}`;
+}
+
 export function createPathNormalizer(expandHomePath) {
   function normalizeAbsolutePath(value) {
-    const textValue = stripWindowsExtendedPathPrefix(expandHomePath(value));
-    if (!isAbsolutePath(textValue)) return String(textValue || "").trim();
-    return resolve(textValue);
+    const expanded = stripWindowsExtendedPathPrefix(expandHomePath(value));
+    if (!isAbsolutePathLike(expanded)) return String(expanded || "").trim();
+    const legacyDrive = legacyDriveRootPath(expanded);
+    if (legacyDrive) return legacyDrive;
+    const wslDrive = wslMountPath(expanded);
+    if (wslDrive) return wslDrive;
+    if (/^[a-zA-Z]:[\\/]/.test(expanded)) return expanded.replaceAll("\\", "/");
+    if (/^\\\\/.test(expanded)) return expanded.replaceAll("\\", "/");
+    return resolve(expanded);
   }
 
   function pathCompareKey(value) {
@@ -82,14 +110,24 @@ export function createPathNormalizer(expandHomePath) {
 
   function pathMatchVariants(value) {
     const textValue = String(value || "").trim();
+    const stripped = stripWindowsExtendedPathPrefix(textValue);
     const normalized = normalizeAbsolutePath(textValue);
-    const extended = toWindowsExtendedPath(normalized);
-    const variants = [textValue, stripWindowsExtendedPathPrefix(textValue), normalized, extended];
-    if (isAbsolutePath(normalized) && resolve(normalized) !== parse(resolve(normalized)).root) {
-      variants.push(`${normalized}${sep}`);
-      if (extended) variants.push(`${extended}${sep}`);
+    const extended = toWindowsExtendedPath(normalized.replaceAll("/", "\\"));
+    const variants = [
+      textValue,
+      stripped,
+      normalized,
+      normalized.replaceAll("\\", "/"),
+      normalized.replaceAll("/", "\\"),
+      extended,
+      legacyDriveRootPath(textValue),
+      wslMountPath(textValue),
+    ];
+    if (isAbsolutePathLike(normalized) && resolve(stripWindowsExtendedPathPrefix(normalized)) !== parse(resolve(stripWindowsExtendedPathPrefix(normalized))).root) {
+      variants.push(`${normalized}${sep}`, `${normalized}/`, `${normalized}\\`);
+      if (extended) variants.push(`${extended}${sep}`, `${extended}\\`);
     }
-    return [...new Set(variants.filter(isAbsolutePath))];
+    return [...new Set(variants.filter(isAbsolutePathLike))];
   }
 
   return { normalizeAbsolutePath, pathCompareKey, pathMatchVariants };

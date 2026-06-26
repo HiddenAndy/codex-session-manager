@@ -27,13 +27,14 @@ if (!existsSync(zipPath)) {
   const listing = execFileSync("unzip", ["-l", zipPath], { encoding: "utf8" });
   for (const required of [
     "codex-session-manager/server.mjs",
-    "codex-session-manager/start.cmd",
-    "codex-session-manager/start.ps1",
     "codex-session-manager/public/app.js",
     "codex-session-manager/docs/patch-notes.md",
     `codex-session-manager/docs/patch-notes/releases/${version}.md`,
     "codex-session-manager/scripts/check-release.mjs",
     "codex-session-manager/scripts/test-regressions.mjs",
+    "codex-session-manager/src/server/backup-inspector.mjs",
+    "codex-session-manager/src/server/backup-service.mjs",
+    "codex-session-manager/src/server/chat-transfer-service.mjs",
     "codex-session-manager/src/server/codex-global-state.mjs",
     "codex-session-manager/src/server/codex-process.mjs",
     "codex-session-manager/src/server/codex-project-config.mjs",

@@ -1,5 +1,5 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { exists, isAbsolutePath } from "./fs-utils.mjs";
+import { exists } from "./fs-utils.mjs";
 
 function tomlProjectHeader(project) {
   return `[projects."${String(project).replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"]`;
@@ -7,6 +7,15 @@ function tomlProjectHeader(project) {
 
 function unescapeTomlProjectName(value) {
   return String(value || "").replace(/\\(["\\])/g, "$1");
+}
+
+function isAbsolutePathLike(value) {
+  return (
+    String(value || "").startsWith("/") ||
+    /^[a-zA-Z]:[\\/]/.test(String(value || "")) ||
+    /^\\\\/.test(String(value || "")) ||
+    /^[\\/][a-zA-Z][\\/]/.test(String(value || ""))
+  );
 }
 
 export function createCodexProjectConfigService({ getConfigToml, normalizeAbsolutePath, pathMatchVariants }) {
@@ -19,7 +28,7 @@ export function createCodexProjectConfigService({ getConfigToml, normalizeAbsolu
     let match;
     while ((match = re.exec(textContent)) !== null) {
       const project = normalizeAbsolutePath(unescapeTomlProjectName(match[1]));
-      if (isAbsolutePath(project)) projects.push(project);
+      if (isAbsolutePathLike(project)) projects.push(project);
     }
     return [...new Set(projects)];
   }

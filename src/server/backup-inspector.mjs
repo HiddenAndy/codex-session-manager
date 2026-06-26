@@ -37,6 +37,7 @@ async function loadBackups() {
   };
   if (await exists(paths().BACKUPS_ROOT)) {
     for (const entry of await readdir(paths().BACKUPS_ROOT, { withFileTypes: true })) {
+      if (isTransferArtifactName(entry.name)) continue;
       const path = join(paths().BACKUPS_ROOT, entry.name);
       const st = await stat(path);
       const type = entry.isDirectory() ? "backup-dir" : "backup-file";
@@ -187,6 +188,11 @@ async function backupDescription(path, type, context) {
   if (name.includes("_state_5_cwd_migration_")) return { label: "SQLite CWD 마이그레이션 백업", detail: "state_5.sqlite CWD 값 마이그레이션 전 상태" };
   if (name.includes("_manual_cwd_mismatch_")) return { label: "수동 CWD 불일치 테스트 백업", detail: "CWD 불일치 테스트 전 상태" };
   return { label: "작업 전 백업", detail: `알 수 없는 작업 전 상태 (${name})` };
+}
+
+function isTransferArtifactName(name) {
+  const value = String(name || "");
+  return value.endsWith(".tgz") || value.includes("_transfer_") || value.includes("_before_transfer_import_");
 }
 
 async function readManifest(path) {

@@ -161,6 +161,12 @@ button.small {
   font-size: 12px;
 }
 
+button.active {
+  border-color: var(--accent);
+  background: #e8f5f2;
+  color: var(--accent-strong);
+}
+
 .button-icon {
   width: 14px;
   height: 14px;
@@ -1052,6 +1058,23 @@ input[readonly] {
   flex: 0 0 24px;
   width: 24px;
   height: 24px;
+}
+
+.project-select {
+  flex: 0 0 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+}
+
+.project-select input {
+  width: 16px;
+  min-height: 16px;
+  margin: 0;
+  cursor: pointer;
 }
 
 .project-toggle-indicator::before {

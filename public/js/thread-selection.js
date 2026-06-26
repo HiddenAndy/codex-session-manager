@@ -2,7 +2,9 @@ export function createThreadSelection({
   $,
   selectedThreads,
   getState,
+  getThreadSelectionMode,
   groupRecords,
+  groupProject,
   renderGroups,
   showConfirm,
   api,
@@ -74,9 +76,23 @@ export function createThreadSelection({
   function updateSelectionBar() {
     const bar = $("#selectionBar");
     const count = selectedThreads.size;
-    bar.hidden = count === 0;
+    bar.hidden = !getThreadSelectionMode?.();
     $("#selectionCount").textContent = `${count}개 선택됨`;
+    $("#exportSelectedChatsButton").disabled = count === 0;
     $("#deleteSelectedButton").disabled = count === 0;
+  }
+
+  function setProjectSelected(project, checked) {
+    const state = getState();
+    if (!state) return;
+    for (const group of state.groups) {
+      if (groupProject(group) !== project) continue;
+      for (const record of groupRecords(group)) {
+        if (checked) selectedThreads.add(record.id);
+        else selectedThreads.delete(record.id);
+      }
+    }
+    renderGroups();
   }
 
   async function deleteSelectedThreads() {
@@ -107,6 +123,7 @@ export function createThreadSelection({
     clearSelectedThreads,
     deleteSelectedThreads,
     normalizeSelectedThreads,
+    setProjectSelected,
     setThreadSelected,
     updateSelectionBar,
   };

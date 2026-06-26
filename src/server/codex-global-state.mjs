@@ -1,6 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { basename, dirname } from "node:path";
-import { exists, isAbsolutePath } from "./fs-utils.mjs";
+import { exists } from "./fs-utils.mjs";
 
 function replaceProjectPathArray(values, fromSet, to, normalizeAbsolutePath) {
   if (!Array.isArray(values)) return { value: values, changed: false };
@@ -71,7 +71,16 @@ function globalStateProjectCandidates(state) {
     if (!projectlessThreadIds.has(threadId)) values.add(value);
   }
   for (const key of Object.keys(state["electron-workspace-root-labels"] || {})) values.add(key);
-  return [...values].filter((value) => typeof value === "string" && isAbsolutePath(value));
+  return [...values].filter((value) => typeof value === "string" && isAbsolutePathLike(value));
+}
+
+function isAbsolutePathLike(value) {
+  return (
+    String(value || "").startsWith("/") ||
+    /^[a-zA-Z]:[\\/]/.test(String(value || "")) ||
+    /^\\\\/.test(String(value || "")) ||
+    /^[\\/][a-zA-Z][\\/]/.test(String(value || ""))
+  );
 }
 
 function isLikelyPreviousProjectPath(candidate, currentPaths, normalizeAbsolutePath) {

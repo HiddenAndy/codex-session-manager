@@ -113,8 +113,8 @@ async function restoreBackup(payload) {
 
   const backupGlobalStateBak = join(target, ".codex-global-state.json.bak");
   if (await exists(backupGlobalStateBak)) {
-    await cp(backupGlobalStateBak, paths().CODEX_GLOBAL_STATE_BAK, { preserveTimestamps: true });
-    restoredFiles.push(paths().CODEX_GLOBAL_STATE_BAK);
+    await cp(backupGlobalStateBak, paths().paths().CODEX_GLOBAL_STATE_BAK, { preserveTimestamps: true });
+    restoredFiles.push(paths().paths().CODEX_GLOBAL_STATE_BAK);
   }
 
   const backupIndex = join(target, "session_index.jsonl");
