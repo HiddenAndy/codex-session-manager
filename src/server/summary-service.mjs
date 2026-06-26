@@ -59,7 +59,7 @@ async function buildSummary() {
     const index = indexMap.get(id)?.[0] || null;
     const parentId = parentByChild.get(id) || primaryFile?.parentThreadId || null;
     const role = thread?.thread_source === "subagent" || primaryFile?.threadSource === "subagent" ? "agent" : "user";
-    const project = thread?.cwd || primaryFile?.cwd || null;
+    const project = normalizeAbsolutePath(thread?.cwd || primaryFile?.cwd || "");
     const projectless = projectlessThreadIds.has(id);
     const issues = [];
     if (!primaryFile) issues.push("missing-session-file");

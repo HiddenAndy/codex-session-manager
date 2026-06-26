@@ -50,23 +50,25 @@ function validateProjectNameInput(value) {
 }
 
 function projectBaseName(project) {
-  return String(project || "").split("/").filter(Boolean).at(-1) || "";
+  return String(project || "").split(/[\\/]/).filter(Boolean).at(-1) || "";
 }
 
 function projectParentPath(project) {
   const value = String(project || "");
   const name = projectBaseName(value);
-  return name ? value.slice(0, value.length - name.length).replace(/\/$/, "") || "/" : value;
+  return name ? value.slice(0, value.length - name.length).replace(/[\\/]$/, "") || "/" : value;
 }
 
 async function repairProjectPath(from) {
   if (!(await ensureCodexClosedForProjectChange())) return;
-  const result = await api("/api/select-path", {
-    method: "POST",
-    body: JSON.stringify({ kind: "directory", currentPath: from }),
+  const input = await showPrompt(`프로젝트의 새 경로를 입력하세요.\n\n기존 경로: ${from}`, {
+    title: "프로젝트 경로 변경",
+    label: "새 프로젝트 경로",
+    value: from,
+    confirmText: "변경",
   });
-  if (result.canceled) return;
-  const to = result.path;
+  if (input === false) return;
+  const to = String(input || "").trim();
   if (!to || to === from) return;
   if (!(await showConfirm(`프로젝트 경로를 변경할까요?\n\n기존: ${from}\n새 경로: ${to}\n\n세션 JSONL과 SQLite threads가 함께 변경되고 백업이 생성됩니다.`, { confirmText: "변경" }))) return;
   setProjectSectionLoading(from, "프로젝트 경로를 변경하는 중...");
@@ -89,15 +91,17 @@ async function repairProjectPath(from) {
 
 async function moveProjectPath(project) {
   if (!(await ensureCodexClosedForProjectChange())) return;
-  const result = await api("/api/select-path", {
-    method: "POST",
-    body: JSON.stringify({ kind: "directory", currentPath: projectParentPath(project) }),
+  const input = await showPrompt(`프로젝트를 이동할 상위 폴더 경로를 입력하세요.\n\n현재 경로: ${project}`, {
+    title: "프로젝트 경로 변경",
+    label: "새 상위 폴더",
+    value: projectParentPath(project),
+    confirmText: "변경",
   });
-  if (result.canceled) return;
-  const parent = result.path;
+  if (input === false) return;
+  const parent = String(input || "").trim();
   const name = projectBaseName(project);
   if (!parent) return;
-  const to = `${parent.replace(/\/$/, "")}/${name}`;
+  const to = `${parent.replace(/[\\/]$/, "")}/${name}`;
   if (to === project) return;
   if (
     !(await showConfirm(
