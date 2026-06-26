@@ -10,7 +10,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { existsSync, rmSync, statSync } from "node:fs";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { homedir, platform } from "node:os";
 import {
   basename,
@@ -48,7 +48,7 @@ const CONFIG_PATH = join(__dirname, ".codex-session-manager.json");
 const PID_PATH = join(__dirname, ".codex-session-manager.pid");
 const UPDATE_STATE_PATH = join(__dirname, ".codex-session-manager-update.json");
 const UPDATE_WORK_DIR = join(__dirname, "updates");
-const UPDATE_REPO = process.env.CODEX_SESSION_MANAGER_UPDATE_REPO || "HiddenAndy/codex-session-manager";
+const UPDATE_REPO = process.env.CODEX_SESSION_MANAGER_UPDATE_REPO || inferGitHubRepoFromOrigin(__dirname);
 const UPDATE_ASSET_NAME = process.env.CODEX_SESSION_MANAGER_UPDATE_ASSET || "codex-session-manager.zip";
 const UPDATE_BRANCH = process.env.CODEX_SESSION_MANAGER_UPDATE_BRANCH || "";
 const UPDATE_REQUEST_TIMEOUT_MS = Number(process.env.CODEX_SESSION_MANAGER_UPDATE_TIMEOUT_MS || 8000);
@@ -70,6 +70,21 @@ const UUID_RE = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 const CANONICAL_ROLLOUT_RE = new RegExp(
   `^rollout-\\d{4}-\\d{2}-\\d{2}T\\d{2}-\\d{2}-\\d{2}-${UUID_RE}\\.jsonl$`,
 );
+
+function inferGitHubRepoFromOrigin(cwd) {
+  try {
+    const remoteUrl = execFileSync("git", ["config", "--get", "remote.origin.url"], {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    const match = remoteUrl.match(/github\.com[:/](?<repo>[^/]+\/[^/.]+)(?:\.git)?$/i);
+    return match?.groups?.repo || "";
+  } catch {
+    return "";
+  }
+}
+
 const APP_PACKAGE = await readPackageMetadata();
 const updateService = createUpdateService({
   appDir: __dirname,

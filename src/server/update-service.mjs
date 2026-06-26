@@ -242,6 +242,13 @@ export function createUpdateService({
       packageVersion: packageMetadata.version,
       testVersion: testCurrentVersion || "",
     };
+    if (!updateRepo) {
+      return {
+        ...base,
+        available: false,
+        reason: "업데이트 저장소가 설정되어 있지 않습니다.",
+      };
+    }
     try {
       const release = await releaseUpdateCandidate();
       if (release?.available || release?.source === "release") return { ...base, ...release };

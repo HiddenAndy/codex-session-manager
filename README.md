@@ -21,7 +21,7 @@ npm start
 
 앱 우측의 `프로그램 업데이트` 영역에서 GitHub 업데이트를 확인하고 설치할 수 있습니다.
 
-기본 업데이트 소스는 `HiddenAndy/codex-session-manager`입니다.
+기본 업데이트 소스는 현재 Git remote origin의 GitHub 저장소입니다.
 
 - 우선 최신 GitHub Release를 확인합니다.
 - Release asset 이름은 `codex-session-manager.zip`이어야 합니다.
@@ -40,7 +40,7 @@ npm run package:release
 버전 기반 업데이트를 쓰려면 `package.json`의 `version`을 올리고, 같은 버전의 태그를 `v0.1.1`처럼 생성합니다.
 업데이트 모달에 들어갈 패치노트는 [docs/patch-notes.md](docs/patch-notes.md) 기준으로 작성합니다.
 
-필요하면 환경 변수로 업데이트 소스를 바꿀 수 있습니다.
+필요하면 환경 변수로 업데이트 소스를 직접 지정할 수 있습니다.
 
 - `CODEX_SESSION_MANAGER_UPDATE_REPO`: `owner/repo` 형식의 저장소
 - `CODEX_SESSION_MANAGER_UPDATE_ASSET`: Release asset 파일명

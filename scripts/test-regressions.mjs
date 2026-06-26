@@ -13,6 +13,7 @@ const serverSource = [
   ...(await Promise.all(serverModuleFiles.map((fileName) => readFile(join(serverModuleDir, fileName), "utf8")))),
 ].join("\n");
 
+assert.doesNotMatch(serverSource, /github\.com[:/]Hidden[^/]+\/codex-session-manager/i, "server code should not hard-code a personal GitHub account");
 assert.match(serverSource, /ARCHIVED_SESSIONS_ROOT/, "server should scan archived_sessions");
 assert.match(serverSource, /for \(const sessionDirName of \["sessions", "archived_sessions"\]\)/, "restore should handle archived_sessions");
 assert.match(serverSource, /backupPathForSessionFile/, "session backups should preserve managed session roots");
