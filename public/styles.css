@@ -1590,7 +1590,7 @@ code {
 
 .app-modal[data-variant="patch-notes"] .app-modal-message {
   position: relative;
-  border: 0;
+  border: 2px dashed #0f766e;
   border-radius: 8px;
   background: #f9fffc;
   color: #134e4a;
@@ -1599,20 +1599,7 @@ code {
   font-size: 14px;
   line-height: 1.75;
   white-space: normal;
-}
-
-.app-modal[data-variant="patch-notes"] .app-modal-message::before {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  content: "";
-  border-radius: inherit;
-  background:
-    repeating-linear-gradient(90deg, #0f766e 0 8px, transparent 8px 13px) top left / 100% 1px no-repeat,
-    repeating-linear-gradient(90deg, #0f766e 0 8px, transparent 8px 13px) bottom left / 100% 1px no-repeat,
-    repeating-linear-gradient(180deg, #0f766e 0 8px, transparent 8px 13px) top left / 1px 100% no-repeat,
-    repeating-linear-gradient(180deg, #0f766e 0 8px, transparent 8px 13px) top right / 1px 100% no-repeat;
-  clip-path: inset(0 round 8px);
+  outline: none;
 }
 
 .app-modal[data-variant="patch-notes"] .app-modal-message h3,

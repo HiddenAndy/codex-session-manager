@@ -69,6 +69,8 @@ assert.match(stylesSource, /\.content-column > \.panel:last-child\s*\{[\s\S]*?fl
 assert.match(stylesSource, /\.thread-row\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) max-content;/, "thread actions should occupy a real grid column");
 assert.match(stylesSource, /\.backup-row\s*\{[\s\S]*?grid-template-columns:[\s\S]*minmax\(0, 1fr\)/, "backup rows should allow long paths to shrink inside the row");
 assert.match(stylesSource, /\.backup-actions button\s*\{[\s\S]*?white-space:\s*nowrap;/, "backup action labels should not break vertically");
+assert.match(stylesSource, /\.app-modal\[data-variant="patch-notes"\] \.app-modal-message\s*\{[\s\S]*?border:\s*2px dashed #0f766e;/, "patch notes modal should keep a prominent dotted border treatment");
+assert.doesNotMatch(stylesSource, /\.app-modal\[data-variant="patch-notes"\] \.app-modal-message::before/, "patch notes modal dotted border should not be drawn as a scroll overlay");
 
 const pathNormalizer = createPathNormalizer((value) => value);
 assert.equal(pathNormalizer.normalizeAbsolutePath("D:\\Codex\\repo"), "D:/Codex/repo", "Windows drive paths should normalize consistently");
