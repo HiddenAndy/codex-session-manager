@@ -46,6 +46,13 @@ export function createUpdateService({
     return normalizeVersion(testCurrentVersion || packageMetadata.version);
   }
 
+  async function currentLocalVersion() {
+    const currentVersion = currentAppVersion();
+    const [latestNote] = await readPatchNotes(1);
+    const latestNoteVersion = latestNote?.version || "";
+    return compareVersions(latestNoteVersion, currentVersion) > 0 ? latestNoteVersion : currentVersion;
+  }
+
   async function readUpdateState() {
     try {
       return JSON.parse(await readFile(updateStatePath, "utf8"));
@@ -81,7 +88,7 @@ export function createUpdateService({
 
   async function getUpdateNotice() {
     const state = await readUpdateState();
-    const currentVersion = currentAppVersion();
+    const currentVersion = await currentLocalVersion();
     if (!state.updatedAt) return { show: false, currentVersion };
     const stateVersion = normalizeVersion(state.version || "");
     const sameInstalledVersion = !stateVersion || stateVersion === currentVersion || state.source === "branch";
@@ -103,7 +110,7 @@ export function createUpdateService({
     if (!state.updatedAt) return { ok: true, changed: false };
     await writeUpdateState({
       ...state,
-      noticeShownFor: currentAppVersion(),
+      noticeShownFor: await currentLocalVersion(),
       noticeShownAt: new Date().toISOString(),
     });
     return { ok: true, changed: true };
@@ -147,7 +154,7 @@ export function createUpdateService({
       };
     }
     const latestVersion = normalizeVersion(release.tag_name);
-    const currentVersion = currentAppVersion();
+    const currentVersion = await currentLocalVersion();
     const available = compareVersions(latestVersion, currentVersion) > 0;
     return {
       source: "release",
@@ -192,7 +199,7 @@ export function createUpdateService({
       };
     }
     if (!assetResponse.ok && ![301, 302, 303, 307, 308].includes(assetResponse.status)) return null;
-    const currentVersion = currentAppVersion();
+    const currentVersion = await currentLocalVersion();
     const available = compareVersions(latestVersion, currentVersion) > 0;
     return {
       source: "release",
@@ -221,7 +228,7 @@ export function createUpdateService({
     return {
       source: "branch",
       available,
-      currentVersion: currentAppVersion(),
+      currentVersion: await currentLocalVersion(),
       currentRevision,
       latestRevision,
       label: `${branchName}@${latestRevision.slice(0, 7)}`,
@@ -234,7 +241,7 @@ export function createUpdateService({
   }
 
   async function getUpdateStatus() {
-    const currentVersion = currentAppVersion();
+    const currentVersion = await currentLocalVersion();
     const base = {
       repo: updateRepo,
       assetName: updateAssetName,

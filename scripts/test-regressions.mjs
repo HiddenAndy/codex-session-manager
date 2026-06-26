@@ -55,6 +55,9 @@ assert.match(updateUiSource, /showManualUpdateGuide/, "update UI should provide 
 assert.match(updateUiSource, /codex-session-manager\.zip/, "manual update guidance should name the release zip");
 assert.match(updateUiSource, /releases\/latest/, "manual update guidance should link to the latest release when possible");
 assert.match(updateUiSource, /catch \(error\)[\s\S]*showManualUpdateGuide\(error, updateInfo\)/, "install failures should show manual update guidance");
+assert.match(serverSource, /async function currentLocalVersion\(\)/, "update status should compare package version with local patch notes");
+assert.match(serverSource, /readPatchNotes\(1\)/, "update status should inspect the latest local patch note version");
+assert.match(serverSource, /compareVersions\(latestNoteVersion, currentVersion\) > 0 \? latestNoteVersion : currentVersion/, "update status should use the newer local version");
 
 assert.doesNotMatch(indexHtmlSource, /refreshButton|새로고침/, "topbar should not show the ineffective refresh button");
 assert.match(indexHtmlSource, /id="shutdownButton"/, "topbar should keep the shutdown button");
