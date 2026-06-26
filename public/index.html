@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Codex 채팅 기록 관리자</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>Codex 채팅 기록 관리자</h1>
+        <p id="subtitle">로컬 세션 상태를 불러오는 중...</p>
+      </div>
+      <div class="topbar-actions">
+        <button id="refreshButton" type="button">새로고침</button>
+        <button id="shutdownButton" class="danger" type="button"><span class="button-icon" data-lucide="power" aria-hidden="true"></span>프로그램 종료</button>
+      </div>
+    </header>
+
+    <main class="app-layout side-open">
+      <div class="content-column">
+        <section class="panel">
+        <div class="section-title">
+          <h2>채팅 목록</h2>
+          <span>사용자 세션을 펼치면 하위 agent 세션을 확인할 수 있습니다.</span>
+        </div>
+        <div class="toolbar">
+          <div class="search-control">
+            <input id="searchInput" placeholder="ID, 프로젝트, 채팅 이름, 파일 경로 검색" />
+            <button id="clearSearchButton" class="icon-button" type="button" aria-label="검색어 지우기" title="검색어 지우기" disabled>&times;</button>
+          </div>
+          <select id="issueFilter">
+            <option value="">모든 진단</option>
+          </select>
+          <select id="projectFilter">
+            <option value="">모든 프로젝트</option>
+          </select>
+        </div>
+        <div id="selectionBar" class="selection-bar" hidden>
+          <span id="selectionCount">0개 선택</span>
+          <div class="selection-actions">
+            <button id="clearSelectionButton" class="small" type="button">선택 해제</button>
+            <button id="deleteSelectedButton" class="danger small" type="button"><span class="button-icon" data-lucide="trash-2" aria-hidden="true"></span>선택 삭제</button>
+          </div>
+        </div>
+        <div id="threadGroups" class="thread-groups"></div>
+        </section>
+
+        <section class="panel">
+        <div class="section-title">
+          <h2>백업</h2>
+          <div class="section-actions">
+            <span>생성된 백업 디렉터리나 세션 _bak 파일을 삭제합니다.</span>
+            <button id="deleteSelectedBackupsButton" class="danger small" type="button" disabled>선택 삭제</button>
+            <button id="deleteUnknownBackupsButton" class="danger small" type="button">원본 확인 불가 삭제</button>
+            <button id="deleteAllBackupsButton" class="danger small" type="button">전체 삭제</button>
+          </div>
+        </div>
+        <div id="backupsList" class="backups-list"></div>
+        </section>
+      </div>
+
+      <aside class="side-column" aria-label="보조 패널">
+        <section class="side-status-panel" aria-labelledby="codexStatusTitle">
+          <div class="side-status-heading">
+            <h2 id="codexStatusTitle">Codex 연결 상태</h2>
+            <span class="settings-header-separator" aria-hidden="true">·</span>
+            <span id="codexProcessStatus" class="process-status muted">확인 중...</span>
+          </div>
+          <p id="codexRunningNote" class="codex-closed-note" hidden>프로젝트 경로 변경, 프로젝트명 변경, 경로 재설정, 참조 복구, 프로젝트 제거는 Codex 앱이 꺼져 있어야 사용할 수 있습니다.</p>
+        </section>
+
+        <section class="side-update-panel" aria-labelledby="updatePanelTitle">
+          <div class="side-section-header">
+            <div>
+              <h2 id="updatePanelTitle">업데이트</h2>
+              <p class="side-heading-description">새 버전 확인과 패치노트를 확인합니다.</p>
+            </div>
+          </div>
+          <div class="header-update" aria-live="polite">
+            <span id="updateStatusText">업데이트 확인 전</span>
+            <div class="side-update-actions">
+              <button id="patchNotesButton" class="small" type="button">
+                <span class="button-icon" data-lucide="scroll-text" aria-hidden="true"></span>
+                패치노트
+              </button>
+              <button id="updateButton" class="small" type="button" data-update-action="check">
+                <span class="button-icon" data-lucide="refresh-cw" aria-hidden="true"></span>
+                업데이트 확인
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel settings-panel">
+          <div class="settings-header">
+            <div>
+              <h2>Codex 경로 설정</h2>
+              <p class="side-heading-description">Codex 홈, 세션 폴더, SQLite DB 위치를 관리합니다.</p>
+            </div>
+          </div>
+          <form id="codexHomeForm" class="settings-form">
+            <div class="path-field">
+              <label>
+                Codex 홈
+                <input id="codexHomeInput" name="codexHome" placeholder="~/.codex" autocomplete="off" readonly />
+              </label>
+              <button type="button" data-select-path="codexHomeInput" data-path-kind="directory">선택</button>
+            </div>
+            <div class="path-field">
+              <label>
+                세션 폴더
+                <input id="sessionsRootInput" name="sessionsRoot" placeholder="~/.codex/sessions" autocomplete="off" readonly />
+              </label>
+              <button type="button" data-select-path="sessionsRootInput" data-path-kind="directory">선택</button>
+            </div>
+            <div class="path-field">
+              <label>
+                SQLite DB
+                <input id="stateDbInput" name="stateDb" placeholder="~/.codex/state_5.sqlite" autocomplete="off" readonly />
+              </label>
+              <button type="button" data-select-path="stateDbInput" data-path-kind="file">선택</button>
+            </div>
+            <div class="path-field">
+              <label>
+                백업 위치
+                <input id="backupsRootInput" name="backupsRoot" placeholder="backups" autocomplete="off" readonly />
+              </label>
+              <button type="button" data-select-path="backupsRootInput" data-path-kind="directory">선택</button>
+            </div>
+            <button type="submit">경로 저장</button>
+            <span id="codexHomeStatus" class="settings-status muted">설정 파일:</span>
+          </form>
+        </section>
+
+        <div class="help-region">
+          <section id="helpPanel" class="help-panel" aria-labelledby="helpPanelTitle">
+            <div class="help-panel-header">
+              <div class="help-title-group">
+                <h2 id="helpPanelTitle">사용 가이드</h2>
+              </div>
+            </div>
+            <div class="guide-timeline">
+              <section class="guide-card guide-card-blue" data-guide-order="1">
+                <div class="guide-marker" aria-hidden="true"><span data-lucide="play"></span></div>
+                <div class="guide-card-body">
+                  <button class="guide-card-toggle" type="button" aria-expanded="false" aria-controls="guideStart">
+                    <span><strong>시작하기</strong><small>경로 설정과 연결 상태를 점검합니다.</small></span>
+                    <span class="guide-chevron" data-lucide="chevron-down" aria-hidden="true"></span>
+                  </button>
+                  <div id="guideStart" class="guide-content" hidden>
+                    <div class="guide-info-list">
+                      <div><span class="guide-label">경로 설정 확인</span><span>연결 상태를 점검합니다.</span></div>
+                      <div><span class="guide-label">Codex 종료 권장</span><span>위험 작업 전 종료 상태를 권장합니다.</span></div>
+                      <div><span class="guide-label">자동 백업</span><span>변경·삭제·복구 전 자동 생성됩니다.</span></div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+              <section class="guide-card guide-card-sky" data-guide-order="2">
+                <div class="guide-marker" aria-hidden="true"><span data-lucide="search"></span></div>
+                <div class="guide-card-body">
+                  <button class="guide-card-toggle" type="button" aria-expanded="false" aria-controls="guideProjectStatus">
+                    <span><strong>상태 진단</strong><small>상태 배지 의미와 권장 조치</small></span>
+                    <span class="guide-chevron" data-lucide="chevron-down" aria-hidden="true"></span>
+                  </button>
+                  <div id="guideProjectStatus" class="guide-content" hidden>
+                    <div class="guide-status-guide-list">
+                      <div><span class="guide-label">경로 재설정</span><span>프로젝트 없음, 경로 불일치 상태에서 사용합니다.</span></div>
+                      <div><span class="guide-label">참조 복구</span><span>프로젝트 참조 없음 상태에서 사용합니다.</span></div>
+                      <div><span class="guide-label">채팅 복구</span><span>세션 인덱스 없음, DB 스레드 없음 상태에서 사용합니다.</span></div>
+                      <div><span class="guide-label">백업 복원</span><span>세션 파일 없음 상태에서 사용합니다.</span></div>
+                      <div><span class="guide-label">중복 정리</span><span>중복 세션 상태에서 사용합니다.</span></div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+              <section class="guide-card guide-card-green" data-guide-order="3">
+                <div class="guide-marker" aria-hidden="true"><span data-lucide="wrench"></span></div>
+                <div class="guide-card-body">
+                  <button class="guide-card-toggle" type="button" aria-expanded="false" aria-controls="guideSessionStatus">
+                    <span><strong>복구 및 변경</strong><small>채팅 복구, 경로 변경, 참조 복구</small></span>
+                    <span class="guide-chevron" data-lucide="chevron-down" aria-hidden="true"></span>
+                  </button>
+                  <div id="guideSessionStatus" class="guide-content" hidden>
+                    <div class="guide-info-list">
+                      <div><span class="guide-label">채팅 복구</span><span>세션 인덱스나 DB 참조가 빠진 경우 사용합니다.</span></div>
+                      <div><span class="guide-label">프로젝트 복구</span><span>프로젝트 내 채팅을 일괄 복구합니다.</span></div>
+                      <div><span class="guide-label">경로 재설정</span><span>프로젝트 폴더를 이미 옮긴 뒤 참조만 맞출 때 사용합니다.</span></div>
+                      <div><span class="guide-label">참조 복구</span><span>프로젝트 목록에서만 누락된 경우 사용합니다.</span></div>
+                      <div><span class="guide-label">프로젝트 경로 변경</span><span>폴더 위치와 관련 참조를 함께 갱신합니다.</span></div>
+                      <div><span class="guide-label">프로젝트명 변경</span><span>폴더명과 관련 참조를 함께 갱신합니다.</span></div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+              <section class="guide-card guide-card-orange" data-guide-order="4">
+                <div class="guide-marker" aria-hidden="true"><span data-lucide="trash-2"></span></div>
+                <div class="guide-card-body">
+                  <button class="guide-card-toggle" type="button" aria-expanded="false" aria-controls="guideRename">
+                    <span><strong>삭제 및 정리</strong><small>채팅 삭제, 프로젝트 제거</small></span>
+                    <span class="guide-chevron" data-lucide="chevron-down" aria-hidden="true"></span>
+                  </button>
+                  <div id="guideRename" class="guide-content" hidden>
+                    <div class="guide-info-list">
+                      <div><span class="guide-label">채팅 삭제</span><span>선택한 채팅과 Agent 세션을 삭제합니다.</span></div>
+                      <div><span class="guide-label">프로젝트 없는 채팅</span><span>원본 프로젝트가 없는 채팅만 정리합니다.</span></div>
+                      <div><span class="guide-label">프로젝트 제거</span><span>프로젝트와 연결 채팅을 모두 제거합니다. 마지막 수단으로 사용하세요.</span></div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+              <section class="guide-card guide-card-violet" data-guide-order="5">
+                <div class="guide-marker" aria-hidden="true"><span data-lucide="archive-restore"></span></div>
+                <div class="guide-card-body">
+                  <button class="guide-card-toggle" type="button" aria-expanded="false" aria-controls="guideBackup">
+                    <span><strong>백업 및 복원</strong><small>자동 백업과 복원 및 백업 관리</small></span>
+                    <span class="guide-chevron" data-lucide="chevron-down" aria-hidden="true"></span>
+                  </button>
+                  <div id="guideBackup" class="guide-content" hidden>
+                    <div class="guide-info-list">
+                      <div><span class="guide-label">자동 백업</span><span>복구, 수정, 삭제 전 자동 생성됩니다.</span></div>
+                      <div><span class="guide-label">복원</span><span>선택한 백업 시점으로 되돌립니다.</span></div>
+                      <div><span class="guide-label">백업 상태</span><span>원본 존재, 일부 제거, 원본 제거, 확인 불가를 확인합니다.</span></div>
+                      <div><span class="guide-label">백업 정리</span><span>선택 삭제, 확인 불가 삭제, 전체 삭제를 사용합니다.</span></div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </section>
+        </div>
+      </aside>
+    </main>
+
+    <div id="appModal" class="app-modal" role="dialog" aria-modal="true" aria-labelledby="appModalTitle" hidden>
+      <div class="app-modal-card">
+        <h2 id="appModalTitle">확인</h2>
+        <p id="appModalMeta" class="app-modal-meta" hidden></p>
+        <div id="appModalMessage" class="app-modal-message"></div>
+        <label id="appModalInputWrap" class="app-modal-input" hidden>
+          <span id="appModalInputLabel">입력</span>
+          <input id="appModalInput" autocomplete="off" />
+        </label>
+        <div class="app-modal-actions">
+          <button id="appModalCancel" type="button">취소</button>
+          <button id="appModalConfirm" type="button">확인</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="fanfareOverlay" class="fanfare-overlay" aria-live="polite" hidden></div>
+
+    <script src="/vendor/lucide/lucide.min.js"></script>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
