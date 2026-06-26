@@ -181,7 +181,7 @@ button.active {
 main {
   max-width: var(--content-max);
   margin: 0 auto;
-  padding: 24px 32px 40px;
+  padding: 24px 32px;
 }
 
 .app-layout {
@@ -203,11 +203,11 @@ main {
 
 .side-column {
   position: sticky;
-  top: 24px;
+  top: var(--side-sticky-top, 24px);
   display: grid;
   gap: 22px;
   min-width: 0;
-  max-height: var(--side-max-height, calc(100vh - 48px));
+  max-height: var(--side-max-height, calc(100vh - var(--side-sticky-top, 24px) - 24px));
   overflow-y: visible;
   border: 1px solid var(--border);
   border-radius: var(--radius-outer);
@@ -1216,10 +1216,16 @@ input[readonly] {
 
 .thread-row {
   position: relative;
-  display: block;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 16px;
+  align-items: start;
   padding: 14px 16px;
   padding-left: 48px;
-  padding-right: 150px;
+}
+
+.thread-main {
+  min-width: 0;
 }
 
 .thread-select {
@@ -1274,7 +1280,7 @@ input[readonly] {
 
 .meta-grid {
   display: grid;
-  grid-template-columns: minmax(300px, 1.2fr) minmax(180px, auto) minmax(220px, 1fr) minmax(180px, auto);
+  grid-template-columns: minmax(0, 1.2fr) minmax(150px, auto) minmax(0, 1fr) minmax(140px, auto);
   gap: 10px;
   margin-top: 8px;
 }
@@ -1403,14 +1409,12 @@ code {
 }
 
 .thread-actions {
-  position: absolute;
-  top: 14px;
-  right: 16px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   align-items: stretch;
   width: 118px;
+  min-width: 0;
 }
 
 .agent-toggle {
@@ -1433,12 +1437,16 @@ code {
 
 .backup-row {
   display: grid;
-  grid-template-columns: 28px max-content minmax(360px, 1fr) minmax(260px, 0.7fr) auto;
+  grid-template-columns: 28px max-content minmax(0, 1fr) minmax(180px, 0.7fr) max-content;
   gap: 12px;
   align-items: center;
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 10px;
+}
+
+.backup-row > * {
+  min-width: 0;
 }
 
 .backup-kind {
@@ -1505,6 +1513,12 @@ code {
   display: inline-flex;
   justify-content: flex-end;
   gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.backup-actions button {
+  white-space: nowrap;
 }
 
 .output {
@@ -1741,11 +1755,7 @@ code {
   }
 
   .thread-row {
-    padding-right: 16px;
-    padding-bottom: 58px;
-  }
-
-  .thread-row {
+    grid-template-columns: minmax(0, 1fr);
     padding-left: 44px;
   }
 
@@ -1754,12 +1764,10 @@ code {
   }
 
   .thread-actions {
-    top: auto;
-    right: 16px;
-    bottom: 14px;
     width: auto;
     flex-direction: row;
     justify-content: flex-start;
+    flex-wrap: wrap;
   }
 }
 

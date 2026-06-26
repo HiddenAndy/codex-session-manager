@@ -7,10 +7,14 @@ export function createSideColumnLayout() {
     if (!sideColumn) return;
     if (window.matchMedia("(max-width: 1200px)").matches) {
       sideColumn.style.removeProperty("--side-max-height");
+      sideColumn.style.removeProperty("--side-sticky-top");
       sideColumn.classList.remove("is-scrollable");
       return;
     }
-    const top = Math.max(24, sideColumn.getBoundingClientRect().top);
+    const topbar = document.querySelector(".topbar");
+    const topbarBottom = topbar?.getBoundingClientRect().bottom || 0;
+    const top = Math.max(24, Math.ceil(topbarBottom + 24));
+    sideColumn.style.setProperty("--side-sticky-top", `${top}px`);
     sideColumn.style.setProperty("--side-max-height", `${Math.max(320, window.innerHeight - top - 24)}px`);
     sideColumn.classList.toggle("is-scrollable", sideColumn.scrollHeight > sideColumn.clientHeight + 1);
   }

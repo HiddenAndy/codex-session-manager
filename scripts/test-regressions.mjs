@@ -18,6 +18,7 @@ const updateUiSource = await readFile(join(root, "public", "js", "update-ui.js")
 const indexHtmlSource = await readFile(join(root, "public", "index.html"), "utf8");
 const appEventsSource = await readFile(join(root, "public", "js", "app-events.js"), "utf8");
 const stylesSource = await readFile(join(root, "public", "styles.css"), "utf8");
+const sideColumnSource = await readFile(join(root, "public", "js", "side-column.js"), "utf8");
 
 assert.doesNotMatch(serverSource, /github\.com[:/]Hidden[^/]+\/codex-session-manager/i, "server code should not hard-code a personal GitHub account");
 assert.match(serverSource, /ARCHIVED_SESSIONS_ROOT/, "server should scan archived_sessions");
@@ -60,6 +61,11 @@ assert.match(indexHtmlSource, /id="shutdownButton"/, "topbar should keep the shu
 assert.doesNotMatch(appEventsSource, /refreshButton/, "app events should not bind the removed refresh button");
 assert.match(appEventsSource, /refresh\(\)\s*\n\s*\.then\(\(\) => maybeShowUpdateNotice\(\)\)/, "app events should still run the initial refresh");
 assert.match(stylesSource, /\.topbar\s*\{[\s\S]*?position:\s*sticky;[\s\S]*?top:\s*0;/, "topbar should stay visible while scrolling");
+assert.match(stylesSource, /\.side-column\s*\{[\s\S]*?top:\s*var\(--side-sticky-top, 24px\)/, "side column should offset below the sticky header");
+assert.match(sideColumnSource, /topbar\?\.getBoundingClientRect\(\)\.bottom/, "side column layout should account for the sticky header height");
+assert.match(stylesSource, /\.thread-row\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) max-content;/, "thread actions should occupy a real grid column");
+assert.match(stylesSource, /\.backup-row\s*\{[\s\S]*?grid-template-columns:[\s\S]*minmax\(0, 1fr\)/, "backup rows should allow long paths to shrink inside the row");
+assert.match(stylesSource, /\.backup-actions button\s*\{[\s\S]*?white-space:\s*nowrap;/, "backup action labels should not break vertically");
 
 const pathNormalizer = createPathNormalizer((value) => value);
 assert.equal(pathNormalizer.normalizeAbsolutePath("D:\\Codex\\repo"), "D:/Codex/repo", "Windows drive paths should normalize consistently");
