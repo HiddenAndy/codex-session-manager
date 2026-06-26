@@ -97,7 +97,7 @@ async function moveProjectPath(project) {
     method: "POST",
     body: JSON.stringify({
       kind: "directory",
-      currentPath: projectParentPath(project),
+      currentPath: project,
       prompt: "새 프로젝트 폴더를 선택하세요.",
     }),
   });

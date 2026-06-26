@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { createPathNormalizer } from "../src/server/fs-utils.mjs";
+import { chatSizeAdvice } from "../public/js/format.js";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const serverModuleDir = join(root, "src", "server");
@@ -35,9 +36,15 @@ assert.match(serverSource, /run-update-\$\{timestampSlug\(\)\}\$\{isWindows \? "
 assert.match(serverSource, /start\.ps1/, "update installer should preserve and restart through the Windows launcher");
 const moveProjectPathSource = projectActionsSource.match(/async function moveProjectPath\(project\) \{[\s\S]*?\n\}/)?.[0] || "";
 assert.match(moveProjectPathSource, /\/api\/select-path/, "project path changes should use the native folder picker");
+assert.match(moveProjectPathSource, /currentPath: project/, "project path picker should open at the current project directory");
 assert.match(moveProjectPathSource, /const to = String\(selected\.path/, "selected project folder should be treated as the final path");
 assert.match(moveProjectPathSource, /\/api\/repair-cwd/, "project path changes should update Codex references directly");
 assert.doesNotMatch(moveProjectPathSource, /\/api\/move-project/, "project path changes should not append the old basename to a selected parent");
+
+assert.equal(chatSizeAdvice(14 * 1024 * 1024), null, "chats below 15MB should not show a size advice badge");
+assert.equal(chatSizeAdvice(15 * 1024 * 1024).label, "새 채팅 고려", "15MB chats should suggest considering a new chat");
+assert.equal(chatSizeAdvice(30 * 1024 * 1024).label, "새 채팅 권장", "30MB chats should recommend a new chat");
+assert.equal(chatSizeAdvice(50 * 1024 * 1024).label, "새 채팅 강력 권장", "50MB chats should strongly recommend a new chat");
 
 const pathNormalizer = createPathNormalizer((value) => value);
 assert.equal(pathNormalizer.normalizeAbsolutePath("D:\\Codex\\repo"), "D:/Codex/repo", "Windows drive paths should normalize consistently");
