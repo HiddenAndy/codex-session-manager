@@ -46,11 +46,8 @@ export function createUpdateService({
     return normalizeVersion(testCurrentVersion || packageMetadata.version);
   }
 
-  async function currentLocalVersion() {
-    const currentVersion = currentAppVersion();
-    const [latestNote] = await readPatchNotes(1);
-    const latestNoteVersion = latestNote?.version || "";
-    return compareVersions(latestNoteVersion, currentVersion) > 0 ? latestNoteVersion : currentVersion;
+  function currentLocalVersion() {
+    return currentAppVersion();
   }
 
   async function readUpdateState() {
