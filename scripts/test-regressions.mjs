@@ -37,6 +37,10 @@ assert.match(serverSource, /isAbsolutePathLike/, "path handling should recognize
 assert.match(serverSource, /\^\[a-zA-Z\]:\[\\\\\/\]/, "path handling should recognize drive-letter paths");
 assert.match(serverSource, /updateRunnerScriptWindows/, "update installer should include a Windows runner");
 assert.match(serverSource, /powershell\.exe/, "update installer should run through PowerShell on Windows");
+assert.match(serverSource, /windowsUpdateLauncherScript/, "Windows update installer should write a cmd launcher");
+assert.match(serverSource, /launch-update-\$\{timestampSlug\(\)\}\.cmd/, "Windows update runner should create a cmd launcher");
+assert.match(serverSource, /del "%~f0"/, "Windows update cmd launcher should delete itself only after PowerShell exits");
+assert.match(serverSource, /spawn\(isWindows \? "cmd\.exe" : "sh"/, "Windows update runner should launch through cmd.exe");
 assert.match(serverSource, /run-update-\$\{timestampSlug\(\)\}\$\{isWindows \? "\.ps1" : "\.sh"\}/, "update installer should write platform-specific runner scripts");
 assert.match(serverSource, /start\.ps1/, "update installer should preserve and restart through the Windows launcher");
 const moveProjectPathSource = projectActionsSource.match(/async function moveProjectPath\(project\) \{[\s\S]*?\n\}/)?.[0] || "";

@@ -25,6 +25,22 @@ function powershellQuote(value) {
   return `'${String(value).replaceAll("'", "''")}'`;
 }
 
+function cmdQuote(value) {
+  return `"${String(value).replaceAll('"', '""')}"`;
+}
+
+function windowsUpdateLauncherScript({ scriptPath, launchLogPath }) {
+  return `@echo off
+setlocal
+>> ${cmdQuote(launchLogPath)} echo Codex Session Manager update launcher start: %DATE% %TIME%
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${cmdQuote(scriptPath)} >> ${cmdQuote(launchLogPath)} 2>&1
+set UPDATE_EXIT_CODE=%ERRORLEVEL%
+>> ${cmdQuote(launchLogPath)} echo Codex Session Manager update launcher exit: %UPDATE_EXIT_CODE%
+del "%~f0"
+exit /b %UPDATE_EXIT_CODE%
+`;
+}
+
 function timestampSlug() {
   return new Date().toISOString().replace(/[-:]/g, "").replace(/\..+/, "").replace("T", "-");
 }
@@ -505,15 +521,21 @@ ${JSON.stringify(updateState, null, 2)}
     }
     const zipPath = await downloadUpdateZip(candidate);
     await mkdir(updateWorkDir, { recursive: true });
+    await mkdir(join(appDir, "logs"), { recursive: true });
     const isWindows = process.platform === "win32";
     const scriptPath = join(updateWorkDir, `run-update-${timestampSlug()}${isWindows ? ".ps1" : ".sh"}`);
+    const launcherPath = join(updateWorkDir, `launch-update-${timestampSlug()}.cmd`);
+    const launchLogPath = join(appDir, "logs", `update-launch-${timestampSlug()}.log`);
     await writeFile(
       scriptPath,
       isWindows ? updateRunnerScriptWindows({ zipPath, candidate }) : updateRunnerScript({ zipPath, candidate }),
       "utf8",
     );
-    const child = spawn(isWindows ? "powershell.exe" : "sh", isWindows
-      ? ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath]
+    if (isWindows) {
+      await writeFile(launcherPath, windowsUpdateLauncherScript({ scriptPath, launchLogPath }), "utf8");
+    }
+    const child = spawn(isWindows ? "cmd.exe" : "sh", isWindows
+      ? ["/d", "/c", launcherPath]
       : [scriptPath], {
       cwd: appDir,
       detached: true,
