@@ -11,6 +11,29 @@ URL="http://127.0.0.1:${PORT}/"
 LOG_DIR="$PROJECT_DIR/logs"
 LOG_FILE="$LOG_DIR/session-manager-$(date +%Y%m%d-%H%M%S).log"
 
+use_available_node_20() {
+  if command -v node >/dev/null 2>&1; then
+    local current_major
+    current_major="$(node -p 'Number(process.versions.node.split(".")[0])' 2>/dev/null || echo 0)"
+    if [ "$current_major" -ge 20 ]; then
+      return
+    fi
+  fi
+
+  local candidate
+  local candidate_major
+  for candidate in "$HOME"/.nvm/versions/node/v*/bin/node(N) /opt/homebrew/bin/node /usr/local/bin/node; do
+    [ -x "$candidate" ] || continue
+    candidate_major="$("$candidate" -p 'Number(process.versions.node.split(".")[0])' 2>/dev/null || echo 0)"
+    if [ "$candidate_major" -ge 20 ]; then
+      export PATH="$(dirname "$candidate"):$PATH"
+      return
+    fi
+  done
+}
+
+use_available_node_20
+
 if ! command -v node >/dev/null 2>&1; then
   echo "Node.js 20 이상이 필요합니다."
   echo "설치 후 다시 실행하세요: https://nodejs.org/"

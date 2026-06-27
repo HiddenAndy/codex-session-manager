@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prestart": "node scripts/check-node-version.cjs",
     "start": "node server.mjs",
+    "predev": "node scripts/check-node-version.cjs",
     "dev": "node server.mjs",
     "package:release": "node scripts/package-release.mjs",
     "release:check": "node scripts/check-release.mjs",
