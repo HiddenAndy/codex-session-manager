@@ -362,25 +362,37 @@ cleanup_update_work() {
     echo "No application root found in update archive."
     exit 1
   fi
+  PACKAGE_NAME="$(node -e 'const fs=require("fs"); const pkg=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(pkg.name || "");' "$SRC_DIR/package.json" 2>/dev/null || true)"
+  if [ "$PACKAGE_NAME" != "codex-session-manager" ]; then
+    echo "Unexpected package name in update archive: $PACKAGE_NAME"
+    exit 1
+  fi
   BACKUP_DIR="$APP_DIR/updates/backup-$(date +%Y%m%d-%H%M%S)"
   mkdir -p "$BACKUP_DIR"
-  for item in README.md package.json package-lock.json server.mjs start.command start.ps1 stop.command public docs scripts src; do
-    if [ -e "$APP_DIR/$item" ]; then
-      mv "$APP_DIR/$item" "$BACKUP_DIR/$item"
+  is_protected_update_item() {
+    case "$1" in
+      .git|node_modules|dist|logs|updates|backups|.codex-session-manager.json) return 0 ;;
+      *) return 1 ;;
+    esac
+  }
+  for item_path in "$APP_DIR"/* "$APP_DIR"/.[!.]* "$APP_DIR"/..?*; do
+    [ -e "$item_path" ] || continue
+    item="$(basename "$item_path")"
+    if is_protected_update_item "$item"; then
+      continue
     fi
+    mv "$item_path" "$BACKUP_DIR/$item"
   done
-  for item in README.md package.json package-lock.json server.mjs start.command start.ps1 stop.command public docs scripts src; do
-    if [ -d "$SRC_DIR/$item" ]; then
-      rm -rf "$APP_DIR/$item"
-      cp -R "$SRC_DIR/$item" "$APP_DIR/$item"
-    elif [ -f "$SRC_DIR/$item" ]; then
-      cp "$SRC_DIR/$item" "$APP_DIR/$item"
+  for item_path in "$SRC_DIR"/* "$SRC_DIR"/.[!.]* "$SRC_DIR"/..?*; do
+    [ -e "$item_path" ] || continue
+    item="$(basename "$item_path")"
+    if is_protected_update_item "$item"; then
+      continue
     fi
-  done
-  for dir in public docs scripts src; do
-    if [ -d "$SRC_DIR/$dir" ] && [ ! -d "$APP_DIR/$dir" ]; then
-      rm -rf "$APP_DIR/$dir"
-      cp -R "$SRC_DIR/$dir" "$APP_DIR/$dir"
+    if [ -d "$item_path" ]; then
+      cp -R "$item_path" "$APP_DIR/$item"
+    else
+      cp "$item_path" "$APP_DIR/$item"
     fi
   done
   chmod +x "$APP_DIR/start.command" || true
@@ -421,7 +433,7 @@ $UPDATE_STATE = ${powershellQuote(updateStatePath)}
 $LOG_DIR = Join-Path $APP_DIR 'logs'
 New-Item -ItemType Directory -Force -Path $LOG_DIR | Out-Null
 $LOG_FILE = Join-Path $LOG_DIR ('update-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.log')
-$ITEMS = @('README.md', 'package.json', 'package-lock.json', 'server.mjs', 'start.command', 'start.ps1', 'stop.command', 'public', 'docs', 'scripts', 'src')
+$PROTECTED_ITEMS = @('.git', 'node_modules', 'dist', 'logs', 'updates', 'backups', '.codex-session-manager.json')
 
 function Write-UpdateLog([string]$Message) {
   Add-Content -LiteralPath $LOG_FILE -Encoding UTF8 -Value $Message
@@ -431,6 +443,10 @@ function Remove-UpdatePath([string]$Path) {
   if (Test-Path -LiteralPath $Path) {
     Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
   }
+}
+
+function Test-ProtectedUpdateItem([string]$Name) {
+  return $PROTECTED_ITEMS -contains $Name
 }
 
 function Cleanup-UpdateWork {
@@ -472,21 +488,26 @@ try {
     throw 'No application root found in update archive.'
   }
 
+  $package = Get-Content -LiteralPath (Join-Path $SRC_DIR 'package.json') -Raw | ConvertFrom-Json
+  if ($package.name -ne 'codex-session-manager') {
+    throw ('Unexpected package name in update archive: ' + $package.name)
+  }
+
   $BACKUP_DIR = Join-Path (Join-Path $APP_DIR 'updates') ('backup-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
   New-Item -ItemType Directory -Force -Path $BACKUP_DIR | Out-Null
 
-  foreach ($item in $ITEMS) {
-    $from = Join-Path $APP_DIR $item
-    if (Test-Path -LiteralPath $from) {
-      Move-Item -LiteralPath $from -Destination (Join-Path $BACKUP_DIR $item) -Force
+  foreach ($entry in Get-ChildItem -LiteralPath $APP_DIR -Force) {
+    if (Test-ProtectedUpdateItem $entry.Name) {
+      continue
     }
+    Move-Item -LiteralPath $entry.FullName -Destination (Join-Path $BACKUP_DIR $entry.Name) -Force
   }
 
-  foreach ($item in $ITEMS) {
-    $from = Join-Path $SRC_DIR $item
-    if (Test-Path -LiteralPath $from) {
-      Copy-Item -LiteralPath $from -Destination (Join-Path $APP_DIR $item) -Recurse -Force
+  foreach ($entry in Get-ChildItem -LiteralPath $SRC_DIR -Force) {
+    if (Test-ProtectedUpdateItem $entry.Name) {
+      continue
     }
+    Copy-Item -LiteralPath $entry.FullName -Destination (Join-Path $APP_DIR $entry.Name) -Recurse -Force
   }
 
   @'

@@ -43,6 +43,19 @@ assert.match(serverSource, /del "%~f0"/, "Windows update cmd launcher should del
 assert.match(serverSource, /spawn\(isWindows \? "cmd\.exe" : "sh"/, "Windows update runner should launch through cmd.exe");
 assert.match(serverSource, /run-update-\$\{timestampSlug\(\)\}\$\{isWindows \? "\.ps1" : "\.sh"\}/, "update installer should write platform-specific runner scripts");
 assert.match(serverSource, /start\.ps1/, "update installer should preserve and restart through the Windows launcher");
+assert.match(serverSource, /is_protected_update_item/, "POSIX updater should protect runtime-local paths while syncing release contents");
+assert.match(serverSource, /Test-ProtectedUpdateItem/, "Windows updater should protect runtime-local paths while syncing release contents");
+assert.match(serverSource, /Unexpected package name in update archive/, "updater should validate package identity before syncing release contents");
+assert.doesNotMatch(
+  serverSource,
+  /for item in README\.md package\.json package-lock\.json server\.mjs start\.command/,
+  "POSIX updater should not use a fixed release file allowlist",
+);
+assert.doesNotMatch(
+  serverSource,
+  /\$ITEMS = @\('README\.md', 'package\.json', 'package-lock\.json', 'server\.mjs'/,
+  "Windows updater should not use a fixed release file allowlist",
+);
 const moveProjectPathSource = projectActionsSource.match(/async function moveProjectPath\(project\) \{[\s\S]*?\n\}/)?.[0] || "";
 assert.match(moveProjectPathSource, /\/api\/select-path/, "project path changes should use the native folder picker");
 assert.match(moveProjectPathSource, /currentPath: project/, "project path picker should open at the current project directory");
